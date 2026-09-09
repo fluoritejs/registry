@@ -1,0 +1,16 @@
+{
+  "name": "fluorite-registry",
+  "version": "0.1.0",
+  "description": "A Node web registry for extensions created with Fluorite Compiler.",
+  "homepage": "https://github.com/fluoritejs/registry#readme",
+  "bugs": {
+    "url": "https://github.com/fluoritejs/registry/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fluoritejs/registry.git"
+  },
+  "license": "Apache-2.0",
+  "author": "Fluorite",
+  "type": "module"
+}
