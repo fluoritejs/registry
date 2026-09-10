@@ -68,6 +68,7 @@ if (
 }
 
 const app = express();
+app.set("trust proxy", "loopback");
 
 app.use((req, res, next) => {
   if (deployment.server.requireHttps && !req.secure && !isLoopback(req)) {
