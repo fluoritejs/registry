@@ -1,5 +1,7 @@
 # Publishing Extensions
 
+Most of these things can be done with Fluorite Compiler. Note that you will need up to Fluorite Compiler v0.2.0 to perform registry-related actions.
+
 ## Account Setup
 
 ```bash
@@ -14,34 +16,7 @@ The response includes a `token`. Save it for subsequent requests.
 
 ## Manifest Format
 
-Every extension source file must contain a Fluorite manifest — an object literal with `id`, `name`, and `version` assigned to a `Fluorite` global. The server parses the source AST to extract it; your code is never executed.
-
-The metadata object may be attached as either `manifest` or `meta`:
-
-```js
-// Form 1: object literal with a manifest/meta property
-var Fluorite = {
-  meta: {
-    id: "my-extension",
-    name: "My Extension",
-    version: "1.0.0",
-    license: "MIT",
-    description: "What this extension does",
-  },
-};
-
-// Form 2: assignment to Fluorite.manifest or Fluorite.meta
-Fluorite = Fluorite || {};
-Fluorite.manifest = {
-  id: "my-extension",
-  name: "My Extension",
-  version: "1.0.0",
-  license: "MIT",
-  description: "What this extension does",
-};
-```
-
-The `Fluorite` declaration may be nested inside a wrapper function. This is the format that `fluorite-compiler` produces — it wraps everything in an IIFE:
+Every extension source file must contain a Fluorite manifest — an object literal with `id`, `name`, and `version` assigned to a `Fluorite` global. The server parses the source AST to extract it; your code is never executed. **If you're using Fluorite Compiler like most consumers will, you won't have to worry about this part.**
 
 ```js
 (function (Scratch) {
@@ -100,27 +75,11 @@ The URL path uses your namespace and the extension ID from the manifest.
 
 ### Publishing with fluorite-compiler
 
+Make sure to log in (`npx fluorite-compiler login`) if you haven't already.
+
 ```bash
-# install the compiler
-npm i -g fluorite-compiler
-
-# scaffold a project
-fluorite-compiler init my-extension
-cd my-extension
-# edit src/00-index.js and src/99-manifest.json...
-
-# build -> dist/<id>@<version>.js
-fluorite-compiler build .
-
-# publish the compiled file
-curl -X POST \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/javascript" \
-  --data-binary @dist/my-extension@1.0.0.js \
-  http://localhost:3000/v0/extensions/@myname/my-extension/versions
+npx fluorite-compiler publish
 ```
-
-The registry stores the compiled output byte-for-byte. Fetching with `Accept: application/javascript` returns exactly what you published.
 
 ### What Happens on Publish
 

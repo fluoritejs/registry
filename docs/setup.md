@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - Node.js 22.13.0+ or 24+
-- A POSIX-like shell (Linux, macOS, WSL)
+- A POSIX shell (Linux, macOS, WSL)
 
 ## Install
 
@@ -22,12 +22,13 @@ After install, create these files in the repo root:
 - `deployment.yaml` — server address, storage path, admin bootstrap
 - `config.yaml` — auth settings, publishing rules, logging
 
-Both are optional. Without them the server uses built-in defaults (port 3000, first user becomes admin, SQLite in `./data`).
+You can just copy them from `deployment.example.yaml` and `config.example.yaml` and edit them from there. Both are optional. Without them the server uses built-in defaults (port 3000, first user becomes admin, SQLite in `./data`).
 
 ## First Run
 
 ```bash
 npm start
+# You can also use Docker/Podman (see README.md).
 ```
 
 The server:
@@ -43,7 +44,7 @@ The server:
 
 There are two ways to get your first admin user:
 
-**Option A — firstUserBecomesAdmin (default)**
+**Option A — `firstUserBecomesAdmin` (default)**
 
 The first account to sign up automatically gets `type: admin` and `trusted: true`. This is the default when `deployment.yaml` is absent or has `admin.firstUserBecomesAdmin: true`.
 
