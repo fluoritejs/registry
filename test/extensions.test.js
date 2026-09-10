@@ -85,6 +85,40 @@ describe("Manifest extraction", () => {
   });
 });
 
+describe("Extensions - review disabled", () => {
+  let env, userToken;
+
+  before(async () => {
+    env = createTestEnv(
+      {},
+      { publishing: { firstPublishRequiresReview: false } },
+    );
+    await signup(env.app, "revadmin", "password123");
+    const userRes = await signup(env.app, "revuser", "password123");
+    userToken = userRes.body.token;
+  });
+
+  after(() => env.cleanup());
+
+  it("untrusted publish goes live when review is disabled", async () => {
+    const res = await request(
+      env.app,
+      "POST",
+      "/v0/extensions/@revuser/hello-world/versions",
+      {
+        body: SAMPLE_SOURCE,
+        headers: {
+          ...authHeaders(userToken),
+          "Content-Type": "application/javascript",
+        },
+      },
+    );
+    assert.strictEqual(res.status, 201);
+    assert.strictEqual(res.body.status, "published");
+    assert.ok(res.body.publishedAt);
+  });
+});
+
 describe("Extensions - trusted publish", () => {
   let env, trustedToken;
 

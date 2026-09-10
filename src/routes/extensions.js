@@ -310,7 +310,8 @@ router.post(
       `.tmp-${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
     );
 
-    const trusted = user.trusted;
+    const trusted =
+      !!user.trusted || !getConfig().publishing.firstPublishRequiresReview;
     const status = trusted ? "published" : "pending";
     const publishedAt = trusted ? nowIso() : null;
 
