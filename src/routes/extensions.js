@@ -348,6 +348,11 @@ router.post(
       res.status(201).json(versionJson(version));
     } catch (err) {
       try {
+        if (existsSync(finalPath)) unlinkSync(finalPath);
+      } catch {
+        /* ignore */
+      }
+      try {
         if (existsSync(tmpPath)) unlinkSync(tmpPath);
       } catch {
         /* ignore */
