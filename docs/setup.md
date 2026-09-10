@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Node.js 22.13.0+ or 24+
+- Node.js 22.13.0 through 22.x, or 24 and newer
 - A POSIX shell (Linux, macOS, WSL)
 
 ## Install

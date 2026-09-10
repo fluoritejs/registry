@@ -50,7 +50,7 @@
 
 ### Prerequisites
 
-- Node.js (v18.0.0 or higher)
+- Node.js (22.13.0 through 22.x, or 24 and newer)
 - npm
 
 ### Installation
