@@ -50,6 +50,22 @@ function parseNamespace(ns) {
   return ns.startsWith("@") ? ns.slice(1) : ns;
 }
 
+function finalizeBlobDelete(v) {
+  if (v.blob_path && existsSync(v.blob_path)) {
+    try {
+      unlinkSync(v.blob_path);
+    } catch (err) {
+      getStmt("markVersionDeletionPending").run(v.id);
+      log.warn(
+        `Failed to delete blob ${v.blob_path}: ${err.message} (left pending for retry)`,
+      );
+      return false;
+    }
+  }
+  getStmt("deleteVersion").run(v.id);
+  return true;
+}
+
 router.get("/", (req, res) => {
   const config = getConfig();
   const maxPageSize = config.listings.maxPageSize;
@@ -174,14 +190,13 @@ router.delete("/:namespace/:id", (req, res) => {
   }
 
   const versions = getStmt("listVersionsByOwner").all(namespace, id);
+  let allBlobsGone = true;
   for (const v of versions) {
-    try {
-      if (existsSync(v.blob_path)) unlinkSync(v.blob_path);
-    } catch (err) {
-      log.warn(`Failed to delete blob ${v.blob_path}: ${err.message}`);
-    }
+    if (!finalizeBlobDelete(v)) allBlobsGone = false;
   }
-  getStmt("deleteVersionsByOwnerAndPackage").run(user.id, id);
+  if (allBlobsGone) {
+    getStmt("deleteVersionsByOwnerAndPackage").run(user.id, id);
+  }
   log.info(`Extension deleted: ${namespace}/${id}`);
   res.status(204).end();
 });
@@ -585,12 +600,7 @@ router.delete("/:namespace/:id/versions/:version", (req, res) => {
       });
   }
 
-  try {
-    if (existsSync(v.blob_path)) unlinkSync(v.blob_path);
-  } catch (err) {
-    log.warn(`Failed to delete blob ${v.blob_path}: ${err.message}`);
-  }
-  getStmt("deleteVersion").run(v.id);
+  finalizeBlobDelete(v);
   log.info(`Version deleted: ${namespace}/${id}@${version}`);
   res.status(204).end();
 });

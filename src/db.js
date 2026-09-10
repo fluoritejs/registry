@@ -87,22 +87,34 @@ export function blobPath(dataDir, owner, packageId, version) {
 export function reconcileStaging(db, dataDir) {
   const staging = db
     .prepare(
-      "SELECT id, owner_id, package_id, version, blob_path FROM versions WHERE status = 'staging'",
+      "SELECT id, owner_id, package_id, version, blob_path, status FROM versions WHERE status IN ('staging', 'pending_delete')",
     )
     .all();
   for (const row of staging) {
-    if (existsSync(row.blob_path)) {
-      db.prepare("UPDATE versions SET status = 'pending' WHERE id = ?").run(
-        row.id,
-      );
-      log.info(
-        `Promoted staging version ${row.package_id}@${row.version} to pending`,
-      );
+    if (row.status === "staging") {
+      if (existsSync(row.blob_path)) {
+        db.prepare("UPDATE versions SET status = 'pending' WHERE id = ?").run(
+          row.id,
+        );
+        log.info(
+          `Promoted staging version ${row.package_id}@${row.version} to pending`,
+        );
+      } else {
+        db.prepare("DELETE FROM versions WHERE id = ?").run(row.id);
+        log.warn(
+          `Deleted orphaned staging version ${row.package_id}@${row.version} (no blob)`,
+        );
+      }
     } else {
-      db.prepare("DELETE FROM versions WHERE id = ?").run(row.id);
-      log.warn(
-        `Deleted orphaned staging version ${row.package_id}@${row.version} (no blob)`,
-      );
+      try {
+        if (existsSync(row.blob_path)) unlinkSync(row.blob_path);
+        db.prepare("DELETE FROM versions WHERE id = ?").run(row.id);
+        log.warn(`Finalized pending-delete version ${row.package_id}@${row.version}`);
+      } catch (err) {
+        log.warn(
+          `Blob still locked for ${row.blob_path}, keeping ${row.package_id}@${row.version} for retry`,
+        );
+      }
     }
   }
 }
@@ -230,6 +242,10 @@ export function prepare(db) {
     "UPDATE versions SET yanked = ?, yank_reason = ? WHERE id = ? RETURNING *",
   );
   s("deleteVersion", "DELETE FROM versions WHERE id = ?");
+  s(
+    "markVersionDeletionPending",
+    "UPDATE versions SET status = 'pending_delete' WHERE id = ?",
+  );
   s(
     "incrementDownloads",
     "UPDATE versions SET downloads = downloads + 1 WHERE id = ?",
