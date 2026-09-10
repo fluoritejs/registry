@@ -126,10 +126,10 @@ function verify(body, secretHex, signatureHeader) {
       .createHmac("sha256", Buffer.from(secretHex, "hex"))
       .update(body)
       .digest("hex");
-  return crypto.timingSafeEqual(
-    Buffer.from(expected),
-    Buffer.from(signatureHeader),
-  );
+  const expectedBuf = Buffer.from(expected);
+  const signatureBuf = Buffer.from(signatureHeader);
+  if (expectedBuf.length !== signatureBuf.length) return false;
+  return crypto.timingSafeEqual(expectedBuf, signatureBuf);
 }
 ```
 
