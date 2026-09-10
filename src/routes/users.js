@@ -2,6 +2,7 @@ import { Router } from "express";
 import { getStmt } from "../db.js";
 import { hashPassword, userJson } from "../auth.js";
 import { getConfig } from "../config.js";
+import { parseCursor, encodeCursor, parseLimit } from "../pagination.js";
 import { isSafeSegment } from "../validate.js";
 import { log } from "../logger.js";
 
@@ -11,26 +12,12 @@ router.get("/", (req, res) => {
   const config = getConfig();
   const maxPageSize = config.listings.maxPageSize;
   const defaultSize = config.listings.defaultPageSize;
-  let limit = Math.min(parseInt(req.query.limit) || defaultSize, maxPageSize);
-  let offset = 0;
-  if (req.query.cursor) {
-    try {
-      const decoded = JSON.parse(
-        Buffer.from(req.query.cursor, "base64").toString(),
-      );
-      offset = decoded.offset || 0;
-    } catch {
-      /* invalid cursor, use 0 */
-    }
-  }
+  const limit = parseLimit(req.query, defaultSize, maxPageSize);
+  const offset = parseCursor(req.query);
   const users = getStmt("listUsers").all(limit + 1, offset);
   const sliced = users.slice(0, limit);
   const nextCursor =
-    users.length > limit
-      ? Buffer.from(JSON.stringify({ offset: offset + limit })).toString(
-          "base64",
-        )
-      : null;
+    users.length > limit ? encodeCursor(offset + limit) : null;
   res.json({ users: sliced.map((u) => userJson(u)), nextCursor });
 });
 

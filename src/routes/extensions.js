@@ -19,25 +19,11 @@ import {
   adminMiddleware,
 } from "../auth.js";
 import { getConfig, getDeployment } from "../config.js";
+import { parseCursor, encodeCursor, parseLimit } from "../pagination.js";
 import { fireWebhooks } from "../webhooks.js";
 import { log } from "../logger.js";
 
 const router = Router();
-
-function parseCursor(query) {
-  if (!query.cursor) return 0;
-  try {
-    return (
-      JSON.parse(Buffer.from(query.cursor, "base64").toString()).offset || 0
-    );
-  } catch {
-    return 0;
-  }
-}
-
-function encodeCursor(offset) {
-  return Buffer.from(JSON.stringify({ offset })).toString("base64");
-}
 
 function versionJson(v) {
   const meta = JSON.parse(v.meta_json || "{}");
@@ -68,7 +54,7 @@ router.get("/", (req, res) => {
   const config = getConfig();
   const maxPageSize = config.listings.maxPageSize;
   const defaultSize = config.listings.defaultPageSize;
-  const limit = Math.min(parseInt(req.query.limit) || defaultSize, maxPageSize);
+  const limit = parseLimit(req.query, defaultSize, maxPageSize);
   const offset = parseCursor(req.query);
   const q = req.query.q;
 
