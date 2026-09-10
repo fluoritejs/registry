@@ -1,0 +1,10 @@
+services:
+  registry:
+    image: ghcr.io/fluoritejs/registry:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+      - ./deployment.yaml:/app/deployment.yaml:ro
+      - ./config.yaml:/app/config.yaml:ro
+    restart: unless-stopped
