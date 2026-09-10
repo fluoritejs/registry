@@ -12,5 +12,33 @@
   },
   "license": "Apache-2.0",
   "author": "Fluorite",
-  "type": "module"
+  "type": "module",
+  "engines": {
+    "node": "^22.13.0 || >=24"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/*.test.js",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "acorn": "^8.14.1",
+    "better-sqlite3": "^13.0.3",
+    "express": "^5.1.0",
+    "js-yaml": "^4.1.0",
+    "picocolors": "^1.1.1",
+    "semver": "^7.7.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.0.0",
+    "eslint-config-prettier": "^10.1.2",
+    "globals": "^16.0.0",
+    "prettier": "^3.5.3"
+  },
+  "allowScripts": {
+    "better-sqlite3@11.10.0": true
+  }
 }

@@ -1,0 +1,225 @@
+import { describe, it, before, after } from "node:test";
+import assert from "node:assert";
+import {
+  createTestEnv,
+  request,
+  signup,
+  login,
+  authHeaders,
+} from "./helpers.js";
+
+describe("Auth", () => {
+  describe("signup", () => {
+    let env;
+    before(() => {
+      env = createTestEnv();
+    });
+    after(() => env.cleanup());
+
+    it("creates an account and returns a token", async () => {
+      const res = await signup(env.app);
+      assert.strictEqual(res.status, 201);
+      assert.ok(res.body.user);
+      assert.strictEqual(res.body.user.namespace, "testuser");
+      assert.ok(res.body.token);
+    });
+
+    it("rejects duplicate namespace", async () => {
+      const res = await signup(env.app);
+      assert.strictEqual(res.status, 409);
+      assert.strictEqual(res.body.error.code, "NAMESPACE_TAKEN");
+    });
+
+    it("rejects short password", async () => {
+      const res = await signup(env.app, "newuser", "short");
+      assert.strictEqual(res.status, 400);
+    });
+
+    it("includes X-Unread-Notifications header", async () => {
+      const res = await signup(env.app, "notifuser", "password123");
+      assert.ok(res.headers["x-unread-notifications"]);
+    });
+  });
+
+  describe("first user becomes admin", () => {
+    let env;
+    before(() => {
+      env = createTestEnv();
+    });
+    after(() => env.cleanup());
+
+    it("first signup gets admin role", async () => {
+      const res = await signup(env.app, "firstadmin", "password123");
+      assert.strictEqual(res.status, 201);
+      assert.strictEqual(res.body.user.type, "admin");
+      assert.strictEqual(res.body.user.trusted, true);
+    });
+
+    it("second signup is normal", async () => {
+      const res = await signup(env.app, "second", "password123");
+      assert.strictEqual(res.status, 201);
+      assert.strictEqual(res.body.user.type, "normal");
+    });
+  });
+
+  describe("bootstrap account path", () => {
+    let env;
+    before(() => {
+      env = createTestEnv({
+        admin: {
+          firstUserBecomesAdmin: false,
+          bootstrapAccount: {
+            namespace: "bootadmin",
+            password: "bootpass1234",
+            displayName: "Boot Admin",
+          },
+        },
+      });
+    });
+    after(() => env.cleanup());
+
+    it("first signup is not admin", async () => {
+      const res = await signup(env.app, "regularuser", "password123");
+      assert.strictEqual(res.status, 201);
+      assert.strictEqual(res.body.user.type, "normal");
+    });
+  });
+
+  describe("login", () => {
+    let env;
+    before(async () => {
+      env = createTestEnv();
+      await signup(env.app, "logintest", "password123");
+    });
+    after(() => env.cleanup());
+
+    it("returns a session token", async () => {
+      const res = await login(env.app, "logintest", "password123");
+      assert.strictEqual(res.status, 200);
+      assert.ok(res.body.token);
+      assert.strictEqual(res.body.user.namespace, "logintest");
+    });
+
+    it("rejects wrong password", async () => {
+      const res = await login(env.app, "logintest", "wrong");
+      assert.strictEqual(res.status, 401);
+    });
+
+    it("rejects unknown user", async () => {
+      const res = await login(env.app, "nobody", "password123");
+      assert.strictEqual(res.status, 401);
+    });
+  });
+
+  describe("logout", () => {
+    let env, token;
+    before(async () => {
+      env = createTestEnv();
+      const res = await signup(env.app, "logoutuser", "password123");
+      token = res.body.token;
+    });
+    after(() => env.cleanup());
+
+    it("invalidates the session", async () => {
+      const res = await request(env.app, "POST", "/v0/auth/logout", {
+        headers: authHeaders(token),
+      });
+      assert.strictEqual(res.status, 204);
+    });
+  });
+
+  describe("sessions", () => {
+    let env, token;
+    before(async () => {
+      env = createTestEnv();
+      const res = await signup(env.app, "sessionuser", "password123");
+      token = res.body.token;
+    });
+    after(() => env.cleanup());
+
+    it("lists active sessions", async () => {
+      const res = await request(env.app, "GET", "/v0/auth/sessions", {
+        headers: authHeaders(token),
+      });
+      assert.strictEqual(res.status, 200);
+      assert.ok(Array.isArray(res.body));
+      assert.ok(res.body.length >= 1);
+    });
+
+    it("revokes all sessions", async () => {
+      const res = await request(env.app, "DELETE", "/v0/auth/sessions", {
+        headers: authHeaders(token),
+      });
+      assert.strictEqual(res.status, 204);
+    });
+  });
+
+  describe("automation tokens", () => {
+    let env, token;
+    before(async () => {
+      env = createTestEnv();
+      const res = await signup(env.app, "autotoken", "password123");
+      token = res.body.token;
+    });
+    after(() => env.cleanup());
+
+    it("creates an automation token", async () => {
+      const res = await request(env.app, "POST", "/v0/auth/tokens", {
+        body: JSON.stringify({ name: "CI", scopes: ["publish"] }),
+        headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      });
+      assert.strictEqual(res.status, 201);
+      assert.ok(res.body.token);
+      assert.strictEqual(res.body.name, "CI");
+    });
+
+    it("lists automation tokens", async () => {
+      const res = await request(env.app, "GET", "/v0/auth/tokens", {
+        headers: authHeaders(token),
+      });
+      assert.strictEqual(res.status, 200);
+      assert.ok(Array.isArray(res.body));
+      assert.ok(res.body.length >= 1);
+    });
+  });
+
+  describe("password change revokes tokens", () => {
+    let env, sessionToken, autoToken;
+    before(async () => {
+      env = createTestEnv();
+      const signupRes = await signup(env.app, "revokeuser", "password123");
+      sessionToken = signupRes.body.token;
+
+      const tokenRes = await request(env.app, "POST", "/v0/auth/tokens", {
+        body: JSON.stringify({ name: "CI", scopes: ["publish"] }),
+        headers: {
+          ...authHeaders(sessionToken),
+          "Content-Type": "application/json",
+        },
+      });
+      autoToken = tokenRes.body.token;
+    });
+    after(() => env.cleanup());
+
+    it("revokes all tokens when password changes", async () => {
+      const res = await request(env.app, "PATCH", "/v0/users/revokeuser", {
+        body: JSON.stringify({ password: "newpassword456" }),
+        headers: {
+          ...authHeaders(sessionToken),
+          "Content-Type": "application/json",
+        },
+      });
+      assert.strictEqual(res.status, 200);
+
+      const sessionCheck = await request(env.app, "GET", "/v0/auth/sessions", {
+        headers: authHeaders(sessionToken),
+      });
+      assert.strictEqual(sessionCheck.status, 401);
+
+      const autoCheck = await request(env.app, "GET", "/v0/auth/tokens", {
+        headers: authHeaders(autoToken),
+      });
+      assert.strictEqual(autoCheck.status, 401);
+    });
+  });
+});

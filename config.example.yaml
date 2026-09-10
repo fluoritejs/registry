@@ -1,0 +1,48 @@
+# Settings that the server doesn't need to boot. Upon updating this file, the server
+# will refresh these settings automatically.
+
+auth:
+  tokenTtl: 7d
+  passwordHashing:
+    algorithm: scrypt
+    N: 16384
+    r: 8
+    p: 1
+  rateLimit:
+    login:
+      maxAttempts: 5
+      windowMinutes: 15
+    signup:
+      maxAttempts: 5
+      windowMinutes: 15
+
+publishing:
+  # An owner's first-ever publish is held for review; every publish after
+  # their first approval goes live immediately.
+  firstPublishRequiresReview: true
+  onePendingPerOwner: true
+  # These are the same as Fluorite Compiler (https://github.com/fluoritejs/compiler).
+  namespacePattern: "^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$"
+  packageIdPattern: "^[a-zA-Z0-9](?:[a-zA-Z0-9._-]{0,63})$"
+
+listings:
+  defaultPageSize: 20
+  maxPageSize: 50
+  searchPageSize: 10
+
+notifications:
+  enabled: true
+  # Included on every authenticated response as X-Unread-Notifications.
+  includeUnreadCountHeader: true
+
+webhooks:
+  deliveryTimeoutMs: 5000
+  maxRetries: 3
+  retryBackoffMs: 2000
+
+server:
+  shutdownTimeoutMs: 5000
+  shutdownTimeoutMaxMs: 9000
+
+logging:
+  level: info # error | warn | info | debug

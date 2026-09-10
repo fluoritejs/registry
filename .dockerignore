@@ -1,0 +1,10 @@
+node_modules
+.git
+data
+dist
+test
+fixtures
+docs
+openapi
+.github
+*.log

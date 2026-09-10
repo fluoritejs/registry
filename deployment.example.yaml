@@ -1,0 +1,22 @@
+# Settings the server needs to boot at all. After updating this file, restart the server.
+
+server:
+  port: 3000
+  publicBaseUrl: https://fluorite.sdisk.us
+  # Required except for loopback addresses (127.0.0.1 / localhost).
+  requireHttps: true
+
+storage:
+  dataDir: ./data
+  # Resolved paths at boot: <dataDir>/registry.sqlite, <dataDir>/blobs/
+
+admin:
+  firstUserBecomesAdmin: true
+
+  # Only read when firstUserBecomesAdmin is false. Remove or leave null
+  # otherwise.
+  bootstrapAccount: null
+  # bootstrapAccount:
+  #   namespace: admin
+  #   password: change-me-immediately   # hashed on first boot, then discarded
+  #   displayName: Administrator

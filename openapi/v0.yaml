@@ -1,0 +1,1134 @@
+openapi: 3.1.0
+info:
+  title: Fluorite Registry API
+  version: "0.1.0"
+  description: >
+    Registry for publishing and fetching compiled TurboWarp extensions built
+    with the Fluorite Compiler. All endpoints are versioned under /v0.
+servers:
+  - url: https://fluorite.sdisk.us/v0
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Open
+    description: No authentication required. Public read access.
+  - name: Userspace
+    description: >-
+      Requires authentication. Self-service actions on your own account,
+      sessions, tokens, extensions, and notifications. Some also accept an
+      admin override (noted per-operation) but do not require admin rights.
+  - name: Adminspace
+    description: Requires authentication as an admin account.
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: >-
+        Accepts two kinds of bearer token: session tokens (from /auth/login,
+        full access, 7-day TTL) and automation tokens (from /auth/tokens,
+        long-lived, restricted to scopes granted at creation — currently only
+        "publish"). Scope enforcement happens server-side per-endpoint.
+
+  parameters:
+    namespaceParam:
+      name: namespace
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$"
+    extensionIdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[a-zA-Z0-9](?:[a-zA-Z0-9._-]{0,63})$"
+    versionParam:
+      name: version
+      in: path
+      required: true
+      schema:
+        type: string
+        description: A literal semver string, or "latest".
+    cursorParam:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    limitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 20
+
+  responses:
+    Error:
+      description: Standard error response.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Missing or invalid credentials.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: Authenticated, but not permitted to perform this action.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              example: VERSION_PENDING_REVIEW
+            message:
+              type: string
+              example: >-
+                You have another version pending review. It needs to be
+                approved or rejected before you can publish again.
+            field:
+              type: [string, "null"]
+
+    User:
+      type: object
+      required: [namespace, displayName, type, trusted]
+      properties:
+        namespace:
+          type: string
+        displayName:
+          type: string
+        type:
+          type: string
+          enum: [admin, normal]
+        trusted:
+          type: boolean
+          description: >-
+            Whether this user's publishes are auto-approved (true after their
+            first-ever publish has been reviewed and approved).
+
+    Session:
+      type: object
+      required: [id, createdAt, expiresAt]
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+
+    AutomationToken:
+      type: object
+      required: [id, name, scopes, createdAt, lastUsedAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          description: 'Caller-supplied label, e.g. "CI: fluorite-publish-action".'
+        scopes:
+          type: array
+          items:
+            type: string
+            enum: [publish]
+        createdAt:
+          type: string
+          format: date-time
+        lastUsedAt:
+          type: [string, "null"]
+          format: date-time
+
+    VersionSummary:
+      type: object
+      required: [version, status, createdAt, yanked, downloads]
+      properties:
+        version:
+          type: string
+        status:
+          type: string
+          enum: [staging, pending, published, rejected]
+        createdAt:
+          type: string
+          format: date-time
+        publishedAt:
+          type: [string, "null"]
+          format: date-time
+        yanked:
+          type: boolean
+          default: false
+        yankReason:
+          type: [string, "null"]
+        downloads:
+          type: integer
+          description: "Count of compiled-code fetches (Accept: application/javascript), incremented per request."
+
+    VersionMetadata:
+      allOf:
+        - $ref: "#/components/schemas/VersionSummary"
+        - type: object
+          required: [id, name, license, description]
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+            license:
+              type: string
+            description:
+              type: string
+
+    ExtensionSummary:
+      type: object
+      required:
+        [
+          namespace,
+          id,
+          name,
+          description,
+          license,
+          latestVersion,
+          publishedAt,
+          totalDownloads,
+        ]
+      properties:
+        namespace:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        license:
+          type: string
+        latestVersion:
+          type: string
+          description: >-
+            The highest published, non-yanked version. If every published
+            version is yanked, this is omitted rather than pointing at a
+            yanked version.
+        publishedAt:
+          type: string
+          format: date-time
+        totalDownloads:
+          type: integer
+          description: Sum of downloads across all versions of this extension.
+
+    Extension:
+      type: object
+      required: [namespace, id, versions]
+      properties:
+        namespace:
+          type: string
+        id:
+          type: string
+        versions:
+          type: array
+          items:
+            $ref: "#/components/schemas/VersionSummary"
+
+    Notification:
+      type: object
+      required: [id, message, createdAt, readAt]
+      properties:
+        id:
+          type: string
+        message:
+          type: string
+        packageId:
+          type: [string, "null"]
+        version:
+          type: [string, "null"]
+        readAt:
+          type: [string, "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    Webhook:
+      type: object
+      required: [id, url, events, enabled, createdAt]
+      properties:
+        id:
+          type: string
+        url:
+          type: string
+          format: uri
+        events:
+          type: array
+          items:
+            type: string
+            enum:
+              - version.published
+              - version.pending
+              - version.approved
+              - version.rejected
+              - version.yanked
+        enabled:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        secret:
+          type: string
+          description: >-
+            Only present in the response to the create call. Used to compute
+            the X-Fluorite-Signature HMAC header on delivered payloads; not
+            retrievable afterward.
+
+    Stats:
+      type: object
+      required: [published, pending, authors, totalDownloads]
+      properties:
+        published:
+          type: integer
+        pending:
+          type: integer
+        authors:
+          type: integer
+        totalDownloads:
+          type: integer
+
+paths:
+  /auth/signup:
+    post:
+      tags: [Open]
+      operationId: signup
+      summary: Create an account. The first successful signup on a fresh registry is auto-promoted to admin.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [namespace, password]
+              properties:
+                namespace:
+                  type: string
+                password:
+                  type: string
+                  minLength: 8
+                displayName:
+                  type: string
+      responses:
+        "201":
+          description: Account created.
+          headers:
+            X-Unread-Notifications:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: "#/components/schemas/User"
+                  token:
+                    type: string
+        "409":
+          $ref: "#/components/responses/Error"
+
+  /auth/login:
+    post:
+      tags: [Open]
+      operationId: login
+      summary: Start a new session.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [namespace, password]
+              properties:
+                namespace:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Authenticated.
+          headers:
+            X-Unread-Notifications:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: "#/components/schemas/User"
+                  token:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/Error"
+
+  /auth/logout:
+    post:
+      tags: [Userspace]
+      operationId: logout
+      summary: End the current session (equivalent to DELETE on the current session's id).
+      responses:
+        "204":
+          description: Logged out.
+
+  /auth/sessions:
+    get:
+      tags: [Userspace]
+      operationId: listSessions
+      summary: List the caller's active sessions.
+      responses:
+        "200":
+          description: Active sessions.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Session"
+    delete:
+      tags: [Userspace]
+      operationId: revokeAllSessions
+      summary: Log out everywhere.
+      responses:
+        "204":
+          description: All sessions revoked.
+
+  /auth/sessions/{id}:
+    delete:
+      tags: [Userspace]
+      operationId: revokeSession
+      summary: Revoke one specific session.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Session revoked.
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /auth/tokens:
+    get:
+      tags: [Userspace]
+      operationId: listAutomationTokens
+      summary: List the caller's automation tokens. Secrets are never returned after creation.
+      responses:
+        "200":
+          description: Automation tokens.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AutomationToken"
+    post:
+      tags: [Userspace]
+      operationId: createAutomationToken
+      summary: >-
+        Create a scoped, long-lived token for CI/automation (e.g.
+        fluorite-publish-action). Unlike sessions, these don't expire on a
+        timer — only on explicit revocation or a password change.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, scopes]
+              properties:
+                name:
+                  type: string
+                scopes:
+                  type: array
+                  items:
+                    type: string
+                    enum: [publish]
+                  minItems: 1
+      responses:
+        "201":
+          description: Token created. The plaintext token is returned once and cannot be retrieved again.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/AutomationToken"
+                  - type: object
+                    required: [token]
+                    properties:
+                      token:
+                        type: string
+
+  /auth/tokens/{id}:
+    delete:
+      tags: [Userspace]
+      operationId: revokeAutomationToken
+      summary: Revoke one automation token.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Revoked.
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /users:
+    get:
+      tags: [Open]
+      operationId: listUsers
+      summary: List users.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/cursorParam"
+        - $ref: "#/components/parameters/limitParam"
+      responses:
+        "200":
+          description: A page of users.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/User"
+                  nextCursor:
+                    type: [string, "null"]
+    post:
+      tags: [Adminspace]
+      operationId: createUser
+      summary: Create an account directly, without self-signup.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [namespace, password]
+              properties:
+                namespace:
+                  type: string
+                password:
+                  type: string
+                displayName:
+                  type: string
+      responses:
+        "201":
+          description: Account created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Error"
+
+  /users/{namespace}:
+    get:
+      tags: [Open]
+      operationId: getUser
+      summary: Look up a user.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/namespaceParam"
+      responses:
+        "200":
+          description: The user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Userspace]
+      operationId: updateUser
+      summary: Update your own profile. Admins may also update another user's.
+      parameters:
+        - $ref: "#/components/parameters/namespaceParam"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                displayName:
+                  type: string
+                password:
+                  type: string
+                  minLength: 8
+      responses:
+        "200":
+          description: >-
+            Updated. Changing password revokes all existing sessions AND
+            automation tokens for this user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Userspace]
+      operationId: deleteUser
+      summary: Delete your own account, or (as admin) another user's, and everything they own.
+      parameters:
+        - $ref: "#/components/parameters/namespaceParam"
+      responses:
+        "204":
+          description: Deleted.
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /users/{namespace}/role:
+    patch:
+      tags: [Adminspace]
+      operationId: updateUserRole
+      summary: Promote or demote a user.
+      parameters:
+        - $ref: "#/components/parameters/namespaceParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type]
+              properties:
+                type:
+                  type: string
+                  enum: [admin, normal]
+      responses:
+        "200":
+          description: Role updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /users/{namespace}/trust:
+    patch:
+      tags: [Adminspace]
+      operationId: updateUserTrust
+      summary: Reset whether this user's publishes are auto-approved.
+      parameters:
+        - $ref: "#/components/parameters/namespaceParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [trusted]
+              properties:
+                trusted:
+                  type: boolean
+      responses:
+        "200":
+          description: Trust flag updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /extensions:
+    get:
+      tags: [Open]
+      operationId: listExtensions
+      summary: List or search published extensions.
+      security: []
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Matches name, id, owner namespace, and manifest fields.
+        - $ref: "#/components/parameters/cursorParam"
+        - $ref: "#/components/parameters/limitParam"
+      responses:
+        "200":
+          description: A page of extensions.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  extensions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ExtensionSummary"
+                  nextCursor:
+                    type: [string, "null"]
+
+  /extensions/@{namespace}/{id}:
+    get:
+      tags: [Open]
+      operationId: getExtension
+      summary: Get extension info. By default, only published (non-yanked) versions are shown.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/namespaceParam"
+        - $ref: "#/components/parameters/extensionIdParam"
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [published, all]
+            default: published
+          description: "'all' requires being the owner or an admin (Userspace/Adminspace escalation on an Open route); includes yanked and non-published versions."
+      responses:
+        "200":
+          description: Extension info.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Extension"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Userspace]
+      operationId: deleteExtension
+      summary: Delete an extension and all of its versions (owner or admin).
+      parameters:
+        - $ref: "#/components/parameters/namespaceParam"
+        - $ref: "#/components/parameters/extensionIdParam"
+      responses:
+        "204":
+          description: Deleted.
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /extensions/@{namespace}/{id}/versions:
+    post:
+      tags: [Userspace]
+      operationId: publishVersion
+      summary: >-
+        Publish a new version. The manifest (id, name, version, license,
+        description) is extracted from the extension source itself — there
+        is no separate metadata body. Accepts session tokens or automation
+        tokens scoped to "publish".
+      parameters:
+        - $ref: "#/components/parameters/namespaceParam"
+        - $ref: "#/components/parameters/extensionIdParam"
+      requestBody:
+        required: true
+        content:
+          application/javascript:
+            schema:
+              type: string
+      responses:
+        "201":
+          description: Version created (pending review, or published if the owner is trusted). Fires version.pending or version.published webhooks.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VersionMetadata"
+        "403":
+          description: Another version is already pending review for this owner, or the token's scope doesn't permit publishing.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: This exact version already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /extensions/@{namespace}/{id}/versions/{version}:
+    get:
+      tags: [Open]
+      operationId: getVersion
+      summary: >-
+        Get a version. Content negotiation determines the response:
+        application/json for metadata, application/javascript for the
+        compiled code. Fetching the compiled code increments its download
+        counter; fetching metadata does not. Yanked versions are still
+        servable (existing consumers keep working) but are flagged.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/namespaceParam"
+        - $ref: "#/components/parameters/extensionIdParam"
+        - $ref: "#/components/parameters/versionParam"
+      responses:
+        "200":
+          description: Version metadata or compiled code, depending on Accept.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VersionMetadata"
+            application/javascript:
+              schema:
+                type: string
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Adminspace]
+      operationId: updateVersion
+      summary: Approve or reject a pending version. Fires version.approved or version.rejected webhooks.
+      parameters:
+        - $ref: "#/components/parameters/namespaceParam"
+        - $ref: "#/components/parameters/extensionIdParam"
+        - $ref: "#/components/parameters/versionParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [approved, rejected]
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Status updated. A notification is sent to the owner in the same transaction.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VersionMetadata"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Userspace]
+      operationId: deleteVersion
+      summary: Remove a single version (and its blob) without touching the rest of the extension. Owner or admin.
+      parameters:
+        - $ref: "#/components/parameters/namespaceParam"
+        - $ref: "#/components/parameters/extensionIdParam"
+        - $ref: "#/components/parameters/versionParam"
+      responses:
+        "204":
+          description: Deleted.
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /extensions/@{namespace}/{id}/versions/{version}/yank:
+    patch:
+      tags: [Userspace]
+      operationId: yankVersion
+      summary: >-
+        Mark a published version deprecated without removing it — existing
+        consumers keep working, new discovery/latest-resolution skips it.
+        Owner or admin. Distinct from DELETE, which removes the blob entirely.
+      parameters:
+        - $ref: "#/components/parameters/namespaceParam"
+        - $ref: "#/components/parameters/extensionIdParam"
+        - $ref: "#/components/parameters/versionParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [yanked]
+              properties:
+                yanked:
+                  type: boolean
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Yank status updated. Fires a version.yanked webhook when set to true.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VersionMetadata"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /versions:
+    get:
+      tags: [Adminspace]
+      operationId: listVersionsAcrossOwners
+      summary: >-
+        A cross-owner, filterable view of versions. This is the moderation
+        worklist: filter by status=pending to find everything awaiting
+        review, without already knowing which namespace/id it belongs to.
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [staging, pending, published, rejected]
+        - $ref: "#/components/parameters/cursorParam"
+        - $ref: "#/components/parameters/limitParam"
+      responses:
+        "200":
+          description: A page of versions, each including its owner namespace and extension id.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  versions:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: "#/components/schemas/VersionMetadata"
+                        - type: object
+                          required: [namespace, extensionId]
+                          properties:
+                            namespace:
+                              type: string
+                            extensionId:
+                              type: string
+                  nextCursor:
+                    type: [string, "null"]
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /stats:
+    get:
+      tags: [Open]
+      operationId: getStats
+      summary: Registry-wide counts.
+      security: []
+      responses:
+        "200":
+          description: Stats.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Stats"
+
+  /webhooks:
+    get:
+      tags: [Adminspace]
+      operationId: listWebhooks
+      summary: List configured webhooks.
+      responses:
+        "200":
+          description: Webhooks. Secrets are not included.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Webhook"
+    post:
+      tags: [Adminspace]
+      operationId: createWebhook
+      summary: Register a webhook.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url, events]
+              properties:
+                url:
+                  type: string
+                  format: uri
+                events:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: string
+                    enum:
+                      - version.published
+                      - version.pending
+                      - version.approved
+                      - version.rejected
+                      - version.yanked
+      responses:
+        "201":
+          description: Webhook created. The secret is returned once, here only.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Webhook"
+
+  /webhooks/{id}:
+    patch:
+      tags: [Adminspace]
+      operationId: updateWebhook
+      summary: Update a webhook's URL, events, or enabled state.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url:
+                  type: string
+                  format: uri
+                events:
+                  type: array
+                  items:
+                    type: string
+                enabled:
+                  type: boolean
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Webhook"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Adminspace]
+      operationId: deleteWebhook
+      summary: Remove a webhook.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted.
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /notifications:
+    get:
+      tags: [Userspace]
+      operationId: listNotifications
+      summary: List your own notifications.
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [unread, read]
+        - $ref: "#/components/parameters/cursorParam"
+        - $ref: "#/components/parameters/limitParam"
+      responses:
+        "200":
+          description: A page of notifications.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  notifications:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Notification"
+                  nextCursor:
+                    type: [string, "null"]
+    delete:
+      tags: [Userspace]
+      operationId: clearReadNotifications
+      summary: Bulk-delete your own notifications by status (e.g. ?status=read).
+      parameters:
+        - name: status
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [read]
+      responses:
+        "204":
+          description: Cleared.
+
+  /notifications/{id}:
+    patch:
+      tags: [Userspace]
+      operationId: markNotificationRead
+      summary: Mark a notification read. Returns 404 (not 403) if it belongs to someone else.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Userspace]
+      operationId: deleteNotification
+      summary: Delete a single notification you own.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted.
+        "404":
+          $ref: "#/components/responses/NotFound"
