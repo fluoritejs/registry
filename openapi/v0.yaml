@@ -214,7 +214,6 @@ components:
           name,
           description,
           license,
-          latestVersion,
           publishedAt,
           totalDownloads,
         ]
