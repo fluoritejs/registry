@@ -252,7 +252,7 @@ components:
         versions:
           type: array
           items:
-            $ref: "#/components/schemas/VersionSummary"
+            $ref: "#/components/schemas/VersionMetadata"
 
     Notification:
       type: object
