@@ -198,7 +198,7 @@ List users, paginated.
 
 ### POST /v0/users
 
-Admin-only. Create a user directly.
+Admin-only. Create a user directly. `password` must be a string of at least 8 characters.
 
 **Body:**
 
@@ -369,7 +369,7 @@ Content-Type: application/javascript
 - The manifest `id` field in the source must match the `:id` URL parameter.
 - Duplicate versions (same namespace + id + version) are rejected with 409.
 - If `onePendingPerOwner` is enabled and you already have a pending version, you get 403.
-- Trusted users' publishes go straight to `published`. Untrusted users get `pending`.
+- With `publishing.firstPublishRequiresReview: true` (the default), untrusted users' first publish goes to `pending` until an admin approves it, after which they're trusted. If the option is disabled, untrusted publishes go straight to `published`.
 
 **Response 201:**
 
@@ -422,6 +422,8 @@ var Fluorite = { ... }
 ```
 
 Use `:version=latest` to resolve the most recent published, non-yanked version.
+
+Unpublished and yanked versions are only visible to the extension owner and admins; anyone else gets 404.
 
 **Errors:** 404 (`NOT_FOUND`, `BLOB_MISSING`)
 
