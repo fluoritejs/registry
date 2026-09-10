@@ -1,10 +1,30 @@
 import { Router } from "express";
 import crypto from "node:crypto";
 import { getStmt } from "../db.js";
-import { hashToken, nowIso } from "../auth.js";
+import { nowIso } from "../auth.js";
+import { isSafeWebhookUrl } from "../webhooks.js";
 import { log } from "../logger.js";
 
 const router = Router();
+
+const WEBHOOK_EVENTS = [
+  "version.published",
+  "version.pending",
+  "version.approved",
+  "version.rejected",
+  "version.yanked",
+];
+
+function validateEvents(events) {
+  if (!Array.isArray(events) || events.length === 0) {
+    return "events must be a non-empty array.";
+  }
+  const invalid = events.filter((e) => !WEBHOOK_EVENTS.includes(e));
+  if (invalid.length > 0) {
+    return `Invalid events: ${invalid.join(", ")}`;
+  }
+  return null;
+}
 
 function webhookJson(wh) {
   return {
@@ -45,7 +65,7 @@ router.post("/", (req, res) => {
       });
   }
   const { url, events } = req.body;
-  if (!url || !events || !Array.isArray(events) || events.length === 0) {
+  if (typeof url !== "string" || url.length === 0) {
     return res
       .status(400)
       .json({
@@ -56,36 +76,39 @@ router.post("/", (req, res) => {
         },
       });
   }
-
-  const validEvents = [
-    "version.published",
-    "version.pending",
-    "version.approved",
-    "version.rejected",
-    "version.yanked",
-  ];
-  const invalid = events.filter((e) => !validEvents.includes(e));
-  if (invalid.length > 0) {
+  const eventsError = validateEvents(events);
+  if (eventsError) {
     return res
       .status(400)
       .json({
         error: {
           code: "VALIDATION_ERROR",
-          message: `Invalid events: ${invalid.join(", ")}`,
+          message: eventsError,
           field: "events",
+        },
+      });
+  }
+  if (!isSafeWebhookUrl(url)) {
+    return res
+      .status(400)
+      .json({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid webhook URL.",
+          field: "url",
         },
       });
   }
 
   const secret = crypto.randomBytes(32).toString("hex");
-  const secretHash = hashToken(secret);
+
   const id = crypto.randomUUID();
 
   getStmt("createWebhook").run(
     id,
     url,
     JSON.stringify(events),
-    secretHash,
+    secret,
     1,
     nowIso(),
   );
@@ -123,6 +146,33 @@ router.patch("/:id", (req, res) => {
   }
 
   const { url, events, enabled } = req.body;
+  if (url !== undefined) {
+    if (typeof url !== "string" || !isSafeWebhookUrl(url)) {
+      return res
+        .status(400)
+        .json({
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "Invalid webhook URL.",
+            field: "url",
+          },
+        });
+    }
+  }
+  if (events !== undefined) {
+    const eventsError = validateEvents(events);
+    if (eventsError) {
+      return res
+        .status(400)
+        .json({
+          error: {
+            code: "VALIDATION_ERROR",
+            message: eventsError,
+            field: "events",
+          },
+        });
+    }
+  }
   const newUrl = url ?? existing.url;
   const newEvents = events ? JSON.stringify(events) : existing.events;
   const newEnabled =

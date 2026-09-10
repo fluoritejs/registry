@@ -63,6 +63,57 @@ describe("Webhooks", () => {
     assert.strictEqual(res.body.enabled, false);
   });
 
+  it("rejects loopback and non-http webhook URLs", async () => {
+    const create = async (url) =>
+      request(env.app, "POST", "/v0/webhooks", {
+        body: JSON.stringify({
+          url,
+          events: ["version.published"],
+        }),
+        headers: {
+          ...authHeaders(adminToken),
+          "Content-Type": "application/json",
+        },
+      });
+
+    for (const url of [
+      "http://127.0.0.1/hook",
+      "http://localhost:4567/hook",
+      "http://10.0.0.5/hook",
+      "file:///etc/passwd",
+      "not-a-url",
+    ]) {
+      const res = await create(url);
+      assert.strictEqual(res.status, 400);
+    }
+  });
+
+  it("rejects invalid events on patch", async () => {
+    const createRes = await request(env.app, "POST", "/v0/webhooks", {
+      body: JSON.stringify({
+        url: "https://example.com/invalid-events",
+        events: ["version.published"],
+      }),
+      headers: {
+        ...authHeaders(adminToken),
+        "Content-Type": "application/json",
+      },
+    });
+    const res = await request(
+      env.app,
+      "PATCH",
+      `/v0/webhooks/${createRes.body.id}`,
+      {
+        body: JSON.stringify({ events: ["not.an.event"] }),
+        headers: {
+          ...authHeaders(adminToken),
+          "Content-Type": "application/json",
+        },
+      },
+    );
+    assert.strictEqual(res.status, 400);
+  });
+
   it("deletes a webhook", async () => {
     const createRes = await request(env.app, "POST", "/v0/webhooks", {
       body: JSON.stringify({

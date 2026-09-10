@@ -73,11 +73,16 @@ export function migrate(db) {
       id TEXT PRIMARY KEY,
       url TEXT NOT NULL,
       events TEXT NOT NULL,
-      secret_hash TEXT NOT NULL,
+      secret TEXT NOT NULL,
       enabled INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL
     );
   `);
+
+  const webhookCols = db.prepare("PRAGMA table_info(webhooks)").all();
+  if (webhookCols.some((c) => c.name === "secret_hash")) {
+    db.exec("ALTER TABLE webhooks RENAME COLUMN secret_hash TO secret");
+  }
 }
 
 export function blobPath(dataDir, owner, packageId, version) {
@@ -387,7 +392,7 @@ export function prepare(db) {
   // Webhooks
   s(
     "createWebhook",
-    "INSERT INTO webhooks (id, url, events, secret_hash, enabled, created_at) VALUES (?, ?, ?, ?, ?, ?) RETURNING *",
+    "INSERT INTO webhooks (id, url, events, secret, enabled, created_at) VALUES (?, ?, ?, ?, ?, ?) RETURNING *",
   );
   s("getWebhook", "SELECT * FROM webhooks WHERE id = ?");
   s(
