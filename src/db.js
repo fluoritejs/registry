@@ -243,6 +243,10 @@ export function prepare(db) {
     "SELECT 1 FROM versions WHERE owner_id = ? AND package_id = ? AND version = ?",
   );
   s(
+    "highestPublishedVersion",
+    `SELECT version FROM versions WHERE owner_id = ? AND package_id = ? AND status = 'published' ORDER BY id DESC LIMIT 1`,
+  );
+  s(
     "listVersionsByOwner",
     `SELECT v.*, u.namespace FROM versions v JOIN users u ON v.owner_id = u.id
     WHERE u.namespace = ? AND v.package_id = ? ORDER BY v.id DESC`,

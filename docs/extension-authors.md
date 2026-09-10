@@ -214,6 +214,7 @@ Common publish errors:
 | ------ | ------------------------ | -------------------------------------------------------- |
 | 400    | `INVALID_MANIFEST`       | Add or fix the `Fluorite.manifest` object in your source |
 | 400    | `MANIFEST_MISMATCH`      | Make sure the manifest `id` matches the URL path         |
+| 400    | `VERSION_TOO_LOW`        | Bump the version above the highest currently published   |
 | 403    | `VERSION_PENDING_REVIEW` | Wait for your current pending version to be reviewed     |
 | 403    | `FORBIDDEN`              | You can only publish to your own namespace               |
 | 404    | `NOT_FOUND`              | Your namespace doesn't exist — sign up first             |

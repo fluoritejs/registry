@@ -299,6 +299,24 @@ describe("Extensions - publish flow", () => {
     assert.strictEqual(res.body.status, "published");
   });
 
+  it("rejects publishing a version lower than the published one", async () => {
+    const source = `var Fluorite = { manifest: { id: 'hello-world', name: 'Hello', version: '1.5.0', license: 'MIT', description: 'd' } };`;
+    const res = await request(
+      env.app,
+      "POST",
+      "/v0/extensions/@regularuser/hello-world/versions",
+      {
+        body: source,
+        headers: {
+          ...authHeaders(untrustedToken),
+          "Content-Type": "application/javascript",
+        },
+      },
+    );
+    assert.strictEqual(res.status, 400);
+    assert.strictEqual(res.body.error.code, "VERSION_TOO_LOW");
+  });
+
   it("fetches compiled code with application/javascript Accept", async () => {
     const res = await request(
       env.app,

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import crypto from "node:crypto";
+import * as semver from "semver";
 import {
   writeFileSync,
   renameSync,
@@ -279,6 +280,19 @@ router.post(
           error: {
             code: "VERSION_EXISTS",
             message: `Version ${manifest.version} already exists.`,
+            field: "version",
+          },
+        });
+    }
+
+    const published = getStmt("highestPublishedVersion").get(user.id, id);
+    if (published && !semver.gt(manifest.version, published.version)) {
+      return res
+        .status(400)
+        .json({
+          error: {
+            code: "VERSION_TOO_LOW",
+            message: `Cannot publish version ${manifest.version}; a higher version (${published.version}) is already published.`,
             field: "version",
           },
         });
