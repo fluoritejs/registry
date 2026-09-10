@@ -56,7 +56,7 @@ admin:
   firstUserBecomesAdmin: false
   bootstrapAccount:
     namespace: admin
-    password: changeme123
+    password: CHANGE_ME   # generate a random password, e.g. openssl rand -base64 24
 ```
 
 **Option B — bootstrapAccount**
