@@ -2,6 +2,7 @@ import { Router } from "express";
 import { getStmt } from "../db.js";
 import { hashPassword, userJson } from "../auth.js";
 import { getConfig } from "../config.js";
+import { isSafeSegment } from "../validate.js";
 import { log } from "../logger.js";
 
 const router = Router();
@@ -58,6 +59,17 @@ router.post("/", (req, res) => {
       });
   }
   const config = getConfig();
+  if (!isSafeSegment(namespace)) {
+    return res
+      .status(400)
+      .json({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid namespace format.",
+          field: "namespace",
+        },
+      });
+  }
   const nsRe = new RegExp(config.publishing.namespacePattern);
   if (!nsRe.test(namespace)) {
     return res

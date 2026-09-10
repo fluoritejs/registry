@@ -1,5 +1,6 @@
 import { parse } from "acorn";
 import * as semver from "semver";
+import { isSafeSegment } from "./validate.js";
 
 function extractProperty(node, name) {
   if (node.type !== "ObjectExpression") return undefined;
@@ -107,6 +108,9 @@ export function extractManifest(source, packageIdPattern) {
 
       if (id && name && version) {
         const pkgRe = new RegExp(packageIdPattern);
+        if (!isSafeSegment(id)) {
+          throw new Error(`Invalid extension id: ${id}`);
+        }
         if (!pkgRe.test(id)) {
           throw new Error(`Invalid extension id: ${id}`);
         }

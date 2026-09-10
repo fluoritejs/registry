@@ -12,6 +12,7 @@ import {
   rateLimitMiddleware,
 } from "../auth.js";
 import { getConfig, getDeployment } from "../config.js";
+import { isSafeSegment } from "../validate.js";
 import { log } from "../logger.js";
 
 const router = Router();
@@ -39,6 +40,18 @@ router.post("/signup", rateLimitMiddleware("signup"), (req, res) => {
           code: "VALIDATION_ERROR",
           message: "Password must be at least 8 characters.",
           field: "password",
+        },
+      });
+  }
+
+  if (!isSafeSegment(namespace)) {
+    return res
+      .status(400)
+      .json({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid namespace format.",
+          field: "namespace",
         },
       });
   }
