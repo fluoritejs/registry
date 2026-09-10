@@ -17,8 +17,7 @@ router.get("/", (req, res) => {
   const offset = parseCursor(req.query);
   const users = getStmt("listUsers").all(limit + 1, offset);
   const sliced = users.slice(0, limit);
-  const nextCursor =
-    users.length > limit ? encodeCursor(offset + limit) : null;
+  const nextCursor = users.length > limit ? encodeCursor(offset + limit) : null;
   res.json({ users: sliced.map((u) => userJson(u)), nextCursor });
 });
 

@@ -64,12 +64,9 @@ describe("Webhooks", () => {
   });
 
   it("rejects loopback and non-http webhook URLs", async () => {
-    const create = async (url) =>
+    const create = (url) =>
       request(env.app, "POST", "/v0/webhooks", {
-        body: JSON.stringify({
-          url,
-          events: ["version.published"],
-        }),
+        body: JSON.stringify({ url, events: ["version.published"] }),
         headers: {
           ...authHeaders(adminToken),
           "Content-Type": "application/json",

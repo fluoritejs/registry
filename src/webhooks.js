@@ -29,7 +29,7 @@ export function isSafeWebhookUrl(rawUrl) {
 
 function isRestrictedIp(host) {
   if (net.isIPv4(host)) {
-    const [a, b, c, d] = host.split(".").map(Number);
+    const [a, b, c] = host.split(".").map(Number);
     if (a === 0 || a === 10 || a === 127) return true;
     if (a === 100 && b >= 64 && b <= 127) return true;
     if (a === 169 && b === 254) return true;
@@ -45,7 +45,12 @@ function isRestrictedIp(host) {
   if (net.isIPv6(host)) {
     const h = host.toLowerCase();
     if (h === "::" || h === "::1") return true;
-    if (h.startsWith("fe8") || h.startsWith("fe9") || h.startsWith("fea") || h.startsWith("feb")) {
+    if (
+      h.startsWith("fe8") ||
+      h.startsWith("fe9") ||
+      h.startsWith("fea") ||
+      h.startsWith("feb")
+    ) {
       return true;
     }
     if (h.startsWith("fc") || h.startsWith("fd")) return true;

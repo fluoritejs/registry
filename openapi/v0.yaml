@@ -208,15 +208,7 @@ components:
     ExtensionSummary:
       type: object
       required:
-        [
-          namespace,
-          id,
-          name,
-          description,
-          license,
-          publishedAt,
-          totalDownloads,
-        ]
+        [namespace, id, name, description, license, publishedAt, totalDownloads]
       properties:
         namespace:
           type: string

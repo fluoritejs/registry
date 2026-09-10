@@ -49,9 +49,12 @@ describe("Notifications", () => {
   });
 
   it("returns 404 for notification belonging to another user", async () => {
-    const res = await request(env.app, "PATCH", `/v0/notifications/${notifId}`, {
-      headers: authHeaders(adminToken),
-    });
+    const res = await request(
+      env.app,
+      "PATCH",
+      `/v0/notifications/${notifId}`,
+      { headers: authHeaders(adminToken) },
+    );
     assert.strictEqual(res.status, 404);
   });
 

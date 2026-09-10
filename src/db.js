@@ -114,7 +114,9 @@ export function reconcileStaging(db, dataDir) {
       try {
         if (existsSync(row.blob_path)) unlinkSync(row.blob_path);
         db.prepare("DELETE FROM versions WHERE id = ?").run(row.id);
-        log.warn(`Finalized pending-delete version ${row.package_id}@${row.version}`);
+        log.warn(
+          `Finalized pending-delete version ${row.package_id}@${row.version}`,
+        );
       } catch (err) {
         log.warn(
           `Blob still locked for ${row.blob_path}, keeping ${row.package_id}@${row.version} for retry`,
@@ -291,10 +293,7 @@ export function prepare(db) {
     "deleteVersionsByOwnerAndPackage",
     "DELETE FROM versions WHERE owner_id = ? AND package_id = ?",
   );
-  s(
-    "listVersionsByUser",
-    "SELECT * FROM versions WHERE owner_id = ?",
-  );
+  s("listVersionsByUser", "SELECT * FROM versions WHERE owner_id = ?");
 
   // Extension summaries
   s(
