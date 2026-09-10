@@ -9,6 +9,7 @@ describe("Users", () => {
     env = createTestEnv();
     const res = await signup(env.app, "admin", "password123");
     adminToken = res.body.token;
+    await signup(env.app, "target", "password123");
   });
 
   after(() => env.cleanup());
@@ -55,8 +56,8 @@ describe("Users", () => {
     assert.strictEqual(res.status, 403);
   });
 
-  it("admin can update user role", async () => {
-    const res = await request(env.app, "PATCH", "/v0/users/admin/role", {
+  it("admin can update a different user's role", async () => {
+    const res = await request(env.app, "PATCH", "/v0/users/target/role", {
       body: JSON.stringify({ type: "admin" }),
       headers: {
         ...authHeaders(adminToken),
@@ -65,10 +66,13 @@ describe("Users", () => {
     });
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.type, "admin");
+
+    const check = await request(env.app, "GET", "/v0/users/target");
+    assert.strictEqual(check.body.type, "admin");
   });
 
-  it("admin can update user trust", async () => {
-    const res = await request(env.app, "PATCH", "/v0/users/admin/trust", {
+  it("admin can update a different user's trust", async () => {
+    const res = await request(env.app, "PATCH", "/v0/users/target/trust", {
       body: JSON.stringify({ trusted: true }),
       headers: {
         ...authHeaders(adminToken),
@@ -77,6 +81,9 @@ describe("Users", () => {
     });
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.trusted, true);
+
+    const check = await request(env.app, "GET", "/v0/users/target");
+    assert.strictEqual(check.body.trusted, true);
   });
 
   it("user can delete own account", async () => {
