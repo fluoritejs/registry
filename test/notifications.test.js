@@ -4,7 +4,7 @@ import { createTestEnv, request, signup, authHeaders } from "./helpers.js";
 import { getStmt } from "../src/db.js";
 
 describe("Notifications", () => {
-  let env, userToken, adminToken;
+  let env, userToken, adminToken, notifId;
 
   before(async () => {
     env = createTestEnv();
@@ -14,7 +14,7 @@ describe("Notifications", () => {
     adminToken = adminRes.body.token;
 
     // Create a notification for the user
-    getStmt("createNotification").run(
+    const notif = getStmt("createNotification").get(
       getStmt("getUserByNamespace").get("notifuser").id,
       "Your extension has been approved.",
       "test-ext",
@@ -22,6 +22,7 @@ describe("Notifications", () => {
       null,
       new Date().toISOString(),
     );
+    notifId = notif.id;
   });
 
   after(() => env.cleanup());
@@ -48,7 +49,7 @@ describe("Notifications", () => {
   });
 
   it("returns 404 for notification belonging to another user", async () => {
-    const res = await request(env.app, "PATCH", "/v0/notifications/99999", {
+    const res = await request(env.app, "PATCH", `/v0/notifications/${notifId}`, {
       headers: authHeaders(adminToken),
     });
     assert.strictEqual(res.status, 404);
