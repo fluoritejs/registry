@@ -35,13 +35,19 @@ router.post("/", (req, res) => {
       });
   }
   const { namespace, password, displayName } = req.body;
-  if (!namespace || !password) {
+  if (
+    !namespace ||
+    typeof namespace !== "string" ||
+    typeof password !== "string" ||
+    password.length < 8
+  ) {
     return res
       .status(400)
       .json({
         error: {
           code: "VALIDATION_ERROR",
-          message: "namespace and password are required.",
+          message:
+            "namespace is required and password must be a string of at least 8 characters.",
           field: null,
         },
       });
@@ -145,13 +151,13 @@ router.patch("/:namespace", (req, res) => {
   let updatedUser = target;
 
   if (password !== undefined) {
-    if (password.length < 8) {
+    if (typeof password !== "string" || password.length < 8) {
       return res
         .status(400)
         .json({
           error: {
             code: "VALIDATION_ERROR",
-            message: "Password must be at least 8 characters.",
+            message: "Password must be a string of at least 8 characters.",
             field: "password",
           },
         });
