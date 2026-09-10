@@ -216,6 +216,21 @@ export function adminMiddleware(req, res, next) {
   next();
 }
 
+export function requireSession(req, res, next) {
+  if (!req.auth || req.auth.tokenKind !== "session") {
+    return res
+      .status(403)
+      .json({
+        error: {
+          code: "FORBIDDEN",
+          message: "Session token required.",
+          field: null,
+        },
+      });
+  }
+  next();
+}
+
 export function scopeMiddleware(scope) {
   return (req, res, next) => {
     if (!req.auth) {

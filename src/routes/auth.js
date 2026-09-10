@@ -10,12 +10,31 @@ import {
   expiryDate,
   successResponse,
   rateLimitMiddleware,
+  requireSession,
 } from "../auth.js";
 import { getConfig, getDeployment } from "../config.js";
 import { isSafeSegment } from "../validate.js";
 import { log } from "../logger.js";
 
 const router = Router();
+
+const sessionAuth = [
+  (req, res, next) => {
+    if (!req.auth) {
+      return res
+        .status(401)
+        .json({
+          error: {
+            code: "UNAUTHORIZED",
+            message: "Authentication required.",
+            field: null,
+          },
+        });
+    }
+    next();
+  },
+  requireSession,
+];
 
 router.post("/signup", rateLimitMiddleware("signup"), (req, res) => {
   const { namespace, password, displayName } = req.body;
@@ -173,18 +192,7 @@ router.post("/logout", (req, res) => {
   res.status(204).end();
 });
 
-router.get("/sessions", (req, res) => {
-  if (!req.auth) {
-    return res
-      .status(401)
-      .json({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Authentication required.",
-          field: null,
-        },
-      });
-  }
+router.get("/sessions", sessionAuth, (req, res) => {
   const sessions = getStmt("listAuthTokens").all(req.auth.user.id);
   const now = new Date();
   const active = sessions
@@ -197,34 +205,12 @@ router.get("/sessions", (req, res) => {
   res.json(active);
 });
 
-router.delete("/sessions", (req, res) => {
-  if (!req.auth) {
-    return res
-      .status(401)
-      .json({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Authentication required.",
-          field: null,
-        },
-      });
-  }
+router.delete("/sessions", sessionAuth, (req, res) => {
   getStmt("deleteAllAuthTokens").run(req.auth.user.id);
   res.status(204).end();
 });
 
-router.delete("/sessions/:id", (req, res) => {
-  if (!req.auth) {
-    return res
-      .status(401)
-      .json({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Authentication required.",
-          field: null,
-        },
-      });
-  }
+router.delete("/sessions/:id", sessionAuth, (req, res) => {
   const sessions = getStmt("listAuthTokens").all(req.auth.user.id);
   const session = sessions.find((s) => s.token_hash === req.params.id);
   if (!session) {
@@ -242,18 +228,7 @@ router.delete("/sessions/:id", (req, res) => {
   res.status(204).end();
 });
 
-router.get("/tokens", (req, res) => {
-  if (!req.auth) {
-    return res
-      .status(401)
-      .json({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Authentication required.",
-          field: null,
-        },
-      });
-  }
+router.get("/tokens", sessionAuth, (req, res) => {
   const tokens = getStmt("listAutomationTokens").all(req.auth.user.id);
   res.json(
     tokens.map((t) => ({
@@ -266,18 +241,7 @@ router.get("/tokens", (req, res) => {
   );
 });
 
-router.post("/tokens", (req, res) => {
-  if (!req.auth) {
-    return res
-      .status(401)
-      .json({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Authentication required.",
-          field: null,
-        },
-      });
-  }
+router.post("/tokens", sessionAuth, (req, res) => {
   const { name, scopes } = req.body;
   if (!name || !scopes || !Array.isArray(scopes) || scopes.length === 0) {
     return res
@@ -323,18 +287,7 @@ router.post("/tokens", (req, res) => {
     .json({ id, name, scopes, createdAt: nowIso(), lastUsedAt: null, token });
 });
 
-router.delete("/tokens/:id", (req, res) => {
-  if (!req.auth) {
-    return res
-      .status(401)
-      .json({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Authentication required.",
-          field: null,
-        },
-      });
-  }
+router.delete("/tokens/:id", sessionAuth, (req, res) => {
   const result = getStmt("deleteAutomationToken").run(
     req.params.id,
     req.auth.user.id,
