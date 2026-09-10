@@ -716,7 +716,9 @@ paths:
       tags: [Open]
       operationId: getExtension
       summary: Get extension info. By default, only published (non-yanked) versions are shown.
-      security: []
+      security:
+        - {}
+        - bearerAuth: []
       parameters:
         - $ref: "#/components/parameters/namespaceParam"
         - $ref: "#/components/parameters/extensionIdParam"
