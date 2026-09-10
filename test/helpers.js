@@ -3,12 +3,13 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import express from "express";
 import { loadConfig, setConfig, setDeployment } from "../src/config.js";
-import { openDb, migrate, prepare } from "../src/db.js";
+import { openDb, migrate, prepare, getStmt } from "../src/db.js";
 import { setLevel } from "../src/logger.js";
 import {
   authMiddleware,
   optionalAuthMiddleware,
   clearRateLimits,
+  hashPassword,
 } from "../src/auth.js";
 
 import authRoutes from "../src/routes/auth.js";
@@ -38,6 +39,20 @@ export function createTestEnv(deploymentOverrides = {}, configOverrides = {}) {
     ...deploymentOverrides,
   };
   setDeployment(deployment);
+
+  if (deployment.admin.bootstrapAccount) {
+    const bootstrap = deployment.admin.bootstrapAccount;
+    if (!getStmt("getUserByNamespace").get(bootstrap.namespace)) {
+      const hash = hashPassword(bootstrap.password);
+      getStmt("createUser").run(
+        bootstrap.namespace,
+        bootstrap.displayName || "Administrator",
+        hash,
+        "admin",
+        1,
+      );
+    }
+  }
 
   const app = express();
   app.use(express.raw({ type: "application/javascript", limit: "1mb" }));
@@ -117,6 +132,10 @@ export async function request(app, method, path, options = {}) {
       req.on("error", (err) => {
         server.close();
         reject(err);
+      });
+
+      req.setTimeout(10000, () => {
+        req.destroy(new Error(`Test request to ${method} ${path} timed out`));
       });
 
       if (options.body) {

@@ -83,6 +83,13 @@ describe("Auth", () => {
       assert.strictEqual(res.status, 201);
       assert.strictEqual(res.body.user.type, "normal");
     });
+
+    it("bootstrap admin can log in", async () => {
+      const res = await login(env.app, "bootadmin", "bootpass1234");
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.body.user.type, "admin");
+      assert.strictEqual(res.body.user.trusted, true);
+    });
   });
 
   describe("login", () => {
