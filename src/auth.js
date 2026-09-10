@@ -82,6 +82,11 @@ function checkRateLimit(key, maxAttempts, windowMinutes) {
     rateLimitStore.set(key, entry);
   }
   entry.count++;
+  if (rateLimitStore.size % 100 === 0) {
+    for (const [k, e] of rateLimitStore) {
+      if (now - e.start > windowMs) rateLimitStore.delete(k);
+    }
+  }
   return entry.count <= maxAttempts;
 }
 
