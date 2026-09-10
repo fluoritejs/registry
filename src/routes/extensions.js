@@ -413,6 +413,20 @@ router.get("/:namespace/:id/versions/:version", (req, res) => {
     }
   }
 
+  const isOwner = req.auth && req.auth.user.id === user.id;
+  const isAdmin = req.auth && req.auth.user.type === "admin";
+  if (!isOwner && !isAdmin && (v.status !== "published" || v.yanked)) {
+    return res
+      .status(404)
+      .json({
+        error: {
+          code: "NOT_FOUND",
+          message: "Version not found.",
+          field: null,
+        },
+      });
+  }
+
   const accept = req.headers.accept || "";
   if (accept.includes("application/javascript")) {
     if (!existsSync(v.blob_path)) {
