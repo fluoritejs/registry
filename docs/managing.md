@@ -187,11 +187,13 @@ kill -SIGHUP <pid>
 
 The SQLite database lives at `<dataDir>/registry.sqlite`. To back it up:
 
+Stop the server first, then copy the file:
+
 ```bash
 cp data/registry.sqlite data/registry.sqlite.bak
 ```
 
-Or use SQLite's backup command for a hot backup while the server runs:
+For a live backup while the server runs, use SQLite's backup command instead:
 
 ```bash
 sqlite3 data/registry.sqlite ".backup data/registry-backup.sqlite"
