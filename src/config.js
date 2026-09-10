@@ -54,7 +54,12 @@ function deepMerge(base, overrides) {
 }
 
 function parseDuration(s) {
-  if (typeof s === "number") return s;
+  if (typeof s === "number") {
+    if (!Number.isFinite(s) || s <= 0) {
+      throw new Error(`Invalid duration: ${s}`);
+    }
+    return s;
+  }
   const match = String(s).match(/^(\d+)(s|m|h|d)$/);
   if (!match) throw new Error(`Invalid duration: ${s}`);
   const n = parseInt(match[1], 10);
@@ -95,20 +100,20 @@ function validateDeployment(d) {
 }
 
 export function loadDeployment(overrides = {}) {
-  const raw = deepMerge(DEPLOYMENT_DEFAULTS, {
-    ...loadYaml(resolve("deployment.yaml")),
-    ...overrides,
-  });
+  const raw = deepMerge(
+    DEPLOYMENT_DEFAULTS,
+    deepMerge(loadYaml(resolve("deployment.yaml")), overrides),
+  );
   validateDeployment(raw);
   raw.storage.dataDir = resolve(raw.storage.dataDir);
   return raw;
 }
 
 export function loadConfig(overrides = {}) {
-  const raw = deepMerge(CONFIG_DEFAULTS, {
-    ...loadYaml(resolve("config.yaml")),
-    ...overrides,
-  });
+  const raw = deepMerge(
+    CONFIG_DEFAULTS,
+    deepMerge(loadYaml(resolve("config.yaml")), overrides),
+  );
   raw.auth.tokenTtlMs = parseDuration(raw.auth.tokenTtl);
   return raw;
 }
