@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { getStmt } from "../db.js";
+import { existsSync, unlinkSync } from "node:fs";
+import { getStmt, deleteUserCascade } from "../db.js";
 import { hashPassword, userJson } from "../auth.js";
 import { getConfig } from "../config.js";
 import { parseCursor, encodeCursor, parseLimit } from "../pagination.js";
@@ -206,9 +207,17 @@ router.delete("/:namespace", (req, res) => {
         },
       });
   }
+  const versions = getStmt("listVersionsByUser").all(target.id);
+  for (const v of versions) {
+    try {
+      if (v.blob_path && existsSync(v.blob_path)) unlinkSync(v.blob_path);
+    } catch (err) {
+      log.warn(`Failed to delete blob ${v.blob_path}: ${err.message}`);
+    }
+  }
   getStmt("deleteAllAuthTokens").run(target.id);
   getStmt("deleteAllAutomationTokens").run(target.id);
-  getStmt("deleteUser").run(target.namespace);
+  deleteUserCascade(target.id);
   log.info(`User deleted: ${target.namespace}`);
   res.status(204).end();
 });

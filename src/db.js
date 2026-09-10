@@ -143,8 +143,10 @@ export function cleanupTempBlobs(dataDir) {
 }
 
 const stmts = {};
+let dbHandle = null;
 
 export function prepare(db) {
+  dbHandle = db;
   const s = (name, sql) => {
     stmts[name] = db.prepare(sql);
   };
@@ -172,7 +174,6 @@ export function prepare(db) {
     "updateUserTrust",
     "UPDATE users SET trusted = ? WHERE namespace = ? RETURNING *",
   );
-  s("deleteUser", "DELETE FROM users WHERE namespace = ?");
   s("listUsers", "SELECT * FROM users ORDER BY id ASC LIMIT ? OFFSET ?");
   s("countUsers", "SELECT COUNT(*) as count FROM users");
 
@@ -284,6 +285,10 @@ export function prepare(db) {
   s(
     "deleteVersionsByOwnerAndPackage",
     "DELETE FROM versions WHERE owner_id = ? AND package_id = ?",
+  );
+  s(
+    "listVersionsByUser",
+    "SELECT * FROM versions WHERE owner_id = ?",
   );
 
   // Extension summaries
@@ -414,4 +419,11 @@ export function prepare(db) {
 
 export function getStmt(name) {
   return stmts[name];
+}
+
+export function deleteUserCascade(id) {
+  dbHandle.transaction(() => {
+    dbHandle.prepare("DELETE FROM versions WHERE owner_id = ?").run(id);
+    dbHandle.prepare("DELETE FROM users WHERE id = ?").run(id);
+  })();
 }
