@@ -1,5 +1,10 @@
 export function versionJson(v, options = {}) {
-  const meta = JSON.parse(v.meta_json || "{}");
+  let meta = {};
+  try {
+    meta = JSON.parse(v.meta_json || "{}") ?? {};
+  } catch {
+    meta = {};
+  }
   const result = {
     version: v.version,
     status: v.status,
