@@ -2,7 +2,7 @@ import { Router } from "express";
 import crypto from "node:crypto";
 import { getStmt } from "../db.js";
 import { nowIso } from "../auth.js";
-import { isSafeWebhookUrl } from "../webhooks.js";
+import { isSafeWebhookUrl, encryptSecret } from "../webhooks.js";
 import { log } from "../logger.js";
 
 const router = Router();
@@ -103,12 +103,13 @@ router.post("/", (req, res) => {
   const secret = crypto.randomBytes(32).toString("hex");
 
   const id = crypto.randomUUID();
+  const encryptedSecret = encryptSecret(secret);
 
   getStmt("createWebhook").run(
     id,
     url,
     JSON.stringify(events),
-    secret,
+    encryptedSecret,
     1,
     nowIso(),
   );

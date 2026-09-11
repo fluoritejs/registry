@@ -29,7 +29,12 @@ const CONFIG_DEFAULTS = {
   },
   listings: { defaultPageSize: 20, maxPageSize: 50, searchPageSize: 10 },
   notifications: { enabled: true, includeUnreadCountHeader: true },
-  webhooks: { deliveryTimeoutMs: 5000, maxRetries: 3, retryBackoffMs: 2000 },
+  webhooks: {
+    deliveryTimeoutMs: 5000,
+    maxRetries: 3,
+    retryBackoffMs: 2000,
+    encryptionKey: "",
+  },
   server: { shutdownTimeoutMs: 5000, shutdownTimeoutMaxMs: 9000 },
   logging: { level: "info" },
 };

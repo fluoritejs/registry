@@ -4,10 +4,35 @@ import { getStmt } from "./db.js";
 import { log } from "./logger.js";
 import { getConfig } from "./config.js";
 
-export function signPayload(body, secret) {
-  const secretBuf = Buffer.from(secret, "hex");
-  const sig = crypto.createHmac("sha256", secretBuf).update(body).digest("hex");
-  return `sha256=${sig}`;
+function getEncryptionKey() {
+  const key = getConfig().webhooks?.encryptionKey;
+  if (!key) return null;
+  return Buffer.from(key, "hex");
+}
+
+export function encryptSecret(plaintext, overrideKey) {
+  const key = overrideKey ? Buffer.from(overrideKey, "hex") : getEncryptionKey();
+  if (!key) return plaintext;
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const encrypted = Buffer.concat([
+    cipher.update(plaintext, "utf8"),
+    cipher.final(),
+  ]);
+  const tag = cipher.getAuthTag();
+  return Buffer.concat([iv, tag, encrypted]).toString("base64");
+}
+
+export function decryptSecret(stored) {
+  const key = getEncryptionKey();
+  if (!key) return stored;
+  const buf = Buffer.from(stored, "base64");
+  const iv = buf.subarray(0, 12);
+  const tag = buf.subarray(12, 28);
+  const encrypted = buf.subarray(28);
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAuthTag(tag);
+  return decipher.update(encrypted, undefined, "utf8") + decipher.final("utf8");
 }
 
 export function isSafeWebhookUrl(rawUrl) {
@@ -76,6 +101,10 @@ export function fireWebhooks(event, payload) {
   for (const wh of webhooks) {
     const events = JSON.parse(wh.events);
     if (!events.includes(event)) continue;
+    if (!wh.secret || !isSafeWebhookUrl(wh.url)) {
+      log.warn(`Refusing unsafe webhook delivery to ${wh.url}`);
+      continue;
+    }
 
     deliverWithRetry(wh, body, event, cfg).catch((err) => {
       log.error(`Webhook delivery to ${wh.url} crashed: ${err.message}`);
@@ -83,11 +112,12 @@ export function fireWebhooks(event, payload) {
   }
 }
 
-async function deliverWithRetry(wh, body, event, cfg) {
-  if (!wh.secret || !isSafeWebhookUrl(wh.url)) {
-    throw new Error(`Refusing unsafe webhook delivery to ${wh.url}`);
+export async function deliverWithRetry(wh, body, event, cfg) {
+  if (!wh.secret) {
+    throw new Error(`Webhook has no secret`);
   }
-  const signature = signPayload(body, wh.secret);
+  const plaintext = decryptSecret(wh.secret);
+  const signature = `sha256=${crypto.createHmac("sha256", plaintext).update(body).digest("hex")}`;
 
   for (let attempt = 0; attempt <= cfg.maxRetries; attempt++) {
     try {
