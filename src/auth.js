@@ -85,13 +85,13 @@ export function clearRateLimits() {
 function getOrCreateEntry(key, windowMs) {
   const now = Date.now();
   let entry = rateLimitStore.get(key);
-  if (!entry || now - entry.start > windowMs) {
-    entry = { start: now, count: 0 };
+  if (!entry || now - entry.start > entry.windowMs) {
+    entry = { start: now, count: 0, windowMs };
     rateLimitStore.set(key, entry);
   }
   if (rateLimitStore.size % 100 === 0) {
     for (const [k, e] of rateLimitStore) {
-      if (now - e.start > windowMs) rateLimitStore.delete(k);
+      if (now - e.start > e.windowMs) rateLimitStore.delete(k);
     }
   }
   return entry;
