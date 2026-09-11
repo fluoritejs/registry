@@ -175,65 +175,59 @@ router.get("/:namespace/:id", (req, res) => {
   res.json({ namespace, id, versions: versions.map((v) => versionJson(v)) });
 });
 
-router.delete("/:namespace/:id", (req, res) => {
-  if (!req.auth) {
-    return res
-      .status(401)
-      .json({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Authentication required.",
-          field: null,
-        },
-      });
-  }
-  const namespace = parseNamespace(req.params.namespace);
-  const id = req.params.id;
-  const user = getStmt("getUserByNamespace").get(namespace);
-  if (!user) {
-    return res
-      .status(404)
-      .json({
-        error: {
-          code: "NOT_FOUND",
-          message: "Extension not found.",
-          field: null,
-        },
-      });
-  }
-  const isOwner = req.auth.user.id === user.id;
-  const isAdmin = req.auth.user.type === "admin";
-  if (!isOwner && !isAdmin) {
-    return res
-      .status(403)
-      .json({
-        error: {
-          code: "FORBIDDEN",
-          message: "Admin or owner access required.",
-          field: null,
-        },
-      });
-  }
+router.delete(
+  "/:namespace/:id",
+  authMiddleware,
+  scopeMiddleware("publish"),
+  (req, res) => {
+    const namespace = parseNamespace(req.params.namespace);
+    const id = req.params.id;
+    const user = getStmt("getUserByNamespace").get(namespace);
+    if (!user) {
+      return res
+        .status(404)
+        .json({
+          error: {
+            code: "NOT_FOUND",
+            message: "Extension not found.",
+            field: null,
+          },
+        });
+    }
+    const isOwner = req.auth.user.id === user.id;
+    const isAdmin = req.auth.user.type === "admin";
+    if (!isOwner && !isAdmin) {
+      return res
+        .status(403)
+        .json({
+          error: {
+            code: "FORBIDDEN",
+            message: "Admin or owner access required.",
+            field: null,
+          },
+        });
+    }
 
-  const versions = getStmt("listVersionsByOwner").all(namespace, id);
-  let pending = false;
-  for (const v of versions) {
-    if (!finalizeBlobDelete(v)) pending = true;
-  }
-  if (pending) {
-    log.warn(`Extension delete left pending blobs: ${namespace}/${id}`);
-    return res
-      .status(202)
-      .json({
-        pending: true,
-        message:
-          "One or more blobs could not be removed; the delete remains pending for retry.",
-      });
-  }
-  getStmt("deleteVersionsByOwnerAndPackage").run(user.id, id);
-  log.info(`Extension deleted: ${namespace}/${id}`);
-  res.status(204).end();
-});
+    const versions = getStmt("listVersionsByOwner").all(namespace, id);
+    let pending = false;
+    for (const v of versions) {
+      if (!finalizeBlobDelete(v)) pending = true;
+    }
+    if (pending) {
+      log.warn(`Extension delete left pending blobs: ${namespace}/${id}`);
+      return res
+        .status(202)
+        .json({
+          pending: true,
+          message:
+            "One or more blobs could not be removed; the delete remains pending for retry.",
+        });
+    }
+    getStmt("deleteVersionsByOwnerAndPackage").run(user.id, id);
+    log.info(`Extension deleted: ${namespace}/${id}`);
+    res.status(204).end();
+  },
+);
 
 router.post(
   "/:namespace/:id/versions",
@@ -624,146 +618,136 @@ router.patch(
   },
 );
 
-router.delete("/:namespace/:id/versions/:version", (req, res) => {
-  if (!req.auth) {
-    return res
-      .status(401)
-      .json({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Authentication required.",
-          field: null,
-        },
-      });
-  }
-  const namespace = parseNamespace(req.params.namespace);
-  const { id, version } = req.params;
-  const user = getStmt("getUserByNamespace").get(namespace);
-  if (!user) {
-    return res
-      .status(404)
-      .json({
-        error: { code: "NOT_FOUND", message: "Not found.", field: null },
-      });
-  }
-  const v = getStmt("getVersion").get(namespace, id, version);
-  if (!v) {
-    return res
-      .status(404)
-      .json({
-        error: {
-          code: "NOT_FOUND",
-          message: "Version not found.",
-          field: null,
-        },
-      });
-  }
-  const isOwner = req.auth.user.id === user.id;
-  const isAdmin = req.auth.user.type === "admin";
-  if (!isOwner && !isAdmin) {
-    return res
-      .status(403)
-      .json({
-        error: {
-          code: "FORBIDDEN",
-          message: "Admin or owner access required.",
-          field: null,
-        },
-      });
-  }
+router.delete(
+  "/:namespace/:id/versions/:version",
+  authMiddleware,
+  scopeMiddleware("publish"),
+  (req, res) => {
+    const namespace = parseNamespace(req.params.namespace);
+    const { id, version } = req.params;
+    const user = getStmt("getUserByNamespace").get(namespace);
+    if (!user) {
+      return res
+        .status(404)
+        .json({
+          error: { code: "NOT_FOUND", message: "Not found.", field: null },
+        });
+    }
+    const v = getStmt("getVersion").get(namespace, id, version);
+    if (!v) {
+      return res
+        .status(404)
+        .json({
+          error: {
+            code: "NOT_FOUND",
+            message: "Version not found.",
+            field: null,
+          },
+        });
+    }
+    const isOwner = req.auth.user.id === user.id;
+    const isAdmin = req.auth.user.type === "admin";
+    if (!isOwner && !isAdmin) {
+      return res
+        .status(403)
+        .json({
+          error: {
+            code: "FORBIDDEN",
+            message: "Admin or owner access required.",
+            field: null,
+          },
+        });
+    }
 
-  if (!finalizeBlobDelete(v)) {
-    log.warn(`Version delete left blob pending: ${namespace}/${id}@${version}`);
-    return res
-      .status(202)
-      .json({
-        pending: true,
-        message:
-          "Blob could not be removed; deletion remains pending for retry.",
-      });
-  }
-  log.info(`Version deleted: ${namespace}/${id}@${version}`);
-  res.status(204).end();
-});
+    if (!finalizeBlobDelete(v)) {
+      log.warn(
+        `Version delete left blob pending: ${namespace}/${id}@${version}`,
+      );
+      return res
+        .status(202)
+        .json({
+          pending: true,
+          message:
+            "Blob could not be removed; deletion remains pending for retry.",
+        });
+    }
+    log.info(`Version deleted: ${namespace}/${id}@${version}`);
+    res.status(204).end();
+  },
+);
 
-router.patch("/:namespace/:id/versions/:version/yank", (req, res) => {
-  if (!req.auth) {
-    return res
-      .status(401)
-      .json({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Authentication required.",
-          field: null,
-        },
-      });
-  }
-  const namespace = parseNamespace(req.params.namespace);
-  const { id, version } = req.params;
-  const { yanked, reason } = req.body ?? {};
+router.patch(
+  "/:namespace/:id/versions/:version/yank",
+  authMiddleware,
+  scopeMiddleware("publish"),
+  (req, res) => {
+    const namespace = parseNamespace(req.params.namespace);
+    const { id, version } = req.params;
+    const { yanked, reason } = req.body ?? {};
 
-  if (typeof yanked !== "boolean") {
-    return res
-      .status(400)
-      .json({
-        error: {
-          code: "VALIDATION_ERROR",
-          message: "yanked must be a boolean.",
-          field: "yanked",
-        },
-      });
-  }
+    if (typeof yanked !== "boolean") {
+      return res
+        .status(400)
+        .json({
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "yanked must be a boolean.",
+            field: "yanked",
+          },
+        });
+    }
 
-  const user = getStmt("getUserByNamespace").get(namespace);
-  if (!user) {
-    return res
-      .status(404)
-      .json({
-        error: { code: "NOT_FOUND", message: "Not found.", field: null },
-      });
-  }
-  const v = getStmt("getVersion").get(namespace, id, version);
-  if (!v) {
-    return res
-      .status(404)
-      .json({
-        error: {
-          code: "NOT_FOUND",
-          message: "Version not found.",
-          field: null,
-        },
-      });
-  }
-  const isOwner = req.auth.user.id === user.id;
-  const isAdmin = req.auth.user.type === "admin";
-  if (!isOwner && !isAdmin) {
-    return res
-      .status(403)
-      .json({
-        error: {
-          code: "FORBIDDEN",
-          message: "Admin or owner access required.",
-          field: null,
-        },
-      });
-  }
+    const user = getStmt("getUserByNamespace").get(namespace);
+    if (!user) {
+      return res
+        .status(404)
+        .json({
+          error: { code: "NOT_FOUND", message: "Not found.", field: null },
+        });
+    }
+    const v = getStmt("getVersion").get(namespace, id, version);
+    if (!v) {
+      return res
+        .status(404)
+        .json({
+          error: {
+            code: "NOT_FOUND",
+            message: "Version not found.",
+            field: null,
+          },
+        });
+    }
+    const isOwner = req.auth.user.id === user.id;
+    const isAdmin = req.auth.user.type === "admin";
+    if (!isOwner && !isAdmin) {
+      return res
+        .status(403)
+        .json({
+          error: {
+            code: "FORBIDDEN",
+            message: "Admin or owner access required.",
+            field: null,
+          },
+        });
+    }
 
-  const wasYanked = v.yanked;
-  getStmt("updateVersionYank").run(
-    yanked ? 1 : 0,
-    yanked ? reason || null : null,
-    v.id,
-  );
+    const wasYanked = v.yanked;
+    getStmt("updateVersionYank").run(
+      yanked ? 1 : 0,
+      yanked ? reason || null : null,
+      v.id,
+    );
 
-  if (yanked && !wasYanked) {
-    fireWebhooks("version.yanked", {
-      extension: { namespace, id },
-      version: { version, status: v.status },
-    });
-  }
+    if (yanked && !wasYanked) {
+      fireWebhooks("version.yanked", {
+        extension: { namespace, id },
+        version: { version, status: v.status },
+      });
+    }
 
-  const updated = getStmt("getVersion").get(namespace, id, version);
-  res.json(versionJson(updated));
-});
+    const updated = getStmt("getVersion").get(namespace, id, version);
+    res.json(versionJson(updated));
+  },
+);
 
 export default router;
