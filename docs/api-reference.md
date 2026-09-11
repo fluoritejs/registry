@@ -333,7 +333,7 @@ Search (`q`) matches against namespace, package ID, name, and description.
 
 ---
 
-### GET /v0/extensions/:namespace/:id
+### GET /v0/extensions/@:namespace/:id
 
 Get extension details and its published versions.
 
@@ -370,7 +370,7 @@ Get extension details and its published versions.
 
 ---
 
-### POST /v0/extensions/:namespace/:id/versions
+### POST /v0/extensions/@:namespace/:id/versions
 
 Publish a new version. **Requires auth + `publish` scope.**
 
@@ -416,7 +416,7 @@ When `status` is `"pending"`, `publishedAt` is `null`.
 
 ---
 
-### GET /v0/extensions/:namespace/:id/versions/:version
+### GET /v0/extensions/@:namespace/:id/versions/:version
 
 Fetch version details or compiled source code.
 
@@ -444,13 +444,13 @@ var Fluorite = { ... }
 
 Use `:version=latest` to resolve the most recent published, non-yanked version.
 
-Unpublished and yanked versions are only visible to the extension owner and admins; anyone else gets 404.
+Only unpublished versions are restricted to the extension owner and admins; anyone else gets 404. Yanked versions remain publicly fetchable by exact version.
 
 **Errors:** 404 (`NOT_FOUND`, `BLOB_MISSING`)
 
 ---
 
-### PATCH /v0/extensions/:namespace/:id/versions/:version
+### PATCH /v0/extensions/@:namespace/:id/versions/:version
 
 Admin-only. Approve or reject a pending version.
 
@@ -470,7 +470,7 @@ Approving a version also grants the owner `trusted: true` if this is their first
 
 ---
 
-### DELETE /v0/extensions/:namespace/:id/versions/:version
+### DELETE /v0/extensions/@:namespace/:id/versions/:version
 
 Delete a specific version and its blob file. Owner or admin.
 
@@ -478,7 +478,7 @@ Delete a specific version and its blob file. Owner or admin.
 
 ---
 
-### PATCH /v0/extensions/:namespace/:id/versions/:version/yank
+### PATCH /v0/extensions/@:namespace/:id/versions/:version/yank
 
 Yank or un-yank a version. Owner or admin. Yanked versions are excluded from public listings and `latest` resolution. The blob file is preserved.
 
@@ -496,7 +496,7 @@ Yank or un-yank a version. Owner or admin. Yanked versions are excluded from pub
 
 ---
 
-### DELETE /v0/extensions/:namespace/:id
+### DELETE /v0/extensions/@:namespace/:id
 
 Delete an extension and all its versions. Owner or admin.
 
