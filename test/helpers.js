@@ -7,28 +7,12 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import express from "express";
 import { loadConfig, setConfig, setDeployment } from "../src/config.js";
 import { openDb, migrate, prepare, getStmt } from "../src/db.js";
+import { createApp } from "../src/app.js";
 import { setLevel } from "../src/logger.js";
-import {
-  authMiddleware,
-  optionalAuthMiddleware,
-  termsMiddleware,
-  clearRateLimits,
-  hashPassword,
-  nowIso,
-} from "../src/auth.js";
+import { clearRateLimits, hashPassword, nowIso } from "../src/auth.js";
 import { loadManifest } from "../src/terms.js";
-
-import authRoutes from "../src/routes/auth.js";
-import userRoutes from "../src/routes/users.js";
-import extensionRoutes from "../src/routes/extensions.js";
-import versionRoutes from "../src/routes/versions.js";
-import webhookRoutes from "../src/routes/webhooks.js";
-import notificationRoutes from "../src/routes/notifications.js";
-import statsRoutes from "../src/routes/stats.js";
-import termsRoutes from "../src/routes/terms.js";
 
 export function createTestEnv(deploymentOverrides = {}, configOverrides = {}) {
   clearRateLimits();
@@ -90,55 +74,7 @@ export function createTestEnv(deploymentOverrides = {}, configOverrides = {}) {
     }
   }
 
-  const app = express();
-  app.use(express.raw({ type: "application/javascript", limit: "1mb" }));
-  app.use(express.raw({ type: "text/markdown", limit: "1mb" }));
-  app.use(express.json());
-
-  app.use(
-    "/v0/auth",
-    (req, res, next) => {
-      const isPublic =
-        req.method === "POST" &&
-        ["/signup", "/login"].some((p) => req.path === p);
-      if (isPublic) return next();
-      authMiddleware(req, res, next);
-    },
-    termsMiddleware,
-    authRoutes,
-  );
-  app.use(
-    "/v0",
-    (req, res, next) => {
-      const termPaths = [
-        "/terms",
-        "/privacy",
-        "/terms/accept",
-        "/admin/terms",
-        "/admin/privacy",
-      ];
-      if (!termPaths.includes(req.path)) return next();
-      if (req.method === "GET") return next();
-      authMiddleware(req, res, next);
-    },
-    termsRoutes,
-  );
-  app.use("/v0/users", optionalAuthMiddleware, termsMiddleware, userRoutes);
-  app.use(
-    "/v0/extensions",
-    optionalAuthMiddleware,
-    termsMiddleware,
-    extensionRoutes,
-  );
-  app.use("/v0/stats", statsRoutes);
-  app.use("/v0/versions", authMiddleware, termsMiddleware, versionRoutes);
-  app.use("/v0/webhooks", authMiddleware, termsMiddleware, webhookRoutes);
-  app.use(
-    "/v0/notifications",
-    authMiddleware,
-    termsMiddleware,
-    notificationRoutes,
-  );
+  const app = createApp();
 
   return {
     app,
