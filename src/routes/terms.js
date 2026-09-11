@@ -3,6 +3,7 @@ import { nowIso, requireSession, adminMiddleware } from "../auth.js";
 import { getConfig } from "../config.js";
 import { getStmt } from "../db.js";
 import { log } from "../logger.js";
+import { isSafeSegment } from "../validate.js";
 import {
   loadManifest,
   readContent,
@@ -92,10 +93,7 @@ function handleAdminUpdate(res, name, label, req) {
         },
       });
   }
-  if (
-    trimmed.split(/[\\/]/).length > 1 ||
-    trimmed.split(/[\\/]/).some((s) => s === "." || s === "..")
-  ) {
+  if (!isSafeSegment(trimmed)) {
     return res
       .status(400)
       .json({
