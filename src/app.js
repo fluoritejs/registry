@@ -106,6 +106,18 @@ export function createApp() {
     notificationRoutes,
   );
 
+  app.use((req, res) => {
+    res
+      .status(404)
+      .json({
+        error: {
+          code: "NOT_FOUND",
+          message: "Route not found.",
+          field: null,
+        },
+      });
+  });
+
   app.use((err, req, res, _next) => {
     const status =
       Number.isInteger(err.status) && err.status >= 400 && err.status < 500
