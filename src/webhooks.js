@@ -139,29 +139,24 @@ export function isRestrictedIp(host) {
     if (a === 172 && b >= 16 && b <= 31) return true;
     if (a === 192 && b === 168) return true;
     if (a === 192 && b === 0 && c === 2) return true;
-    if (a === 198 && b === 18) return true;
+    if (a === 198 && (b === 18 || b === 19)) return true;
     if (a === 198 && b === 51 && c === 100) return true;
     if (a === 203 && b === 0 && c === 113) return true;
     if (a >= 224) return true;
     return false;
   }
   if (net.isIPv6(host)) {
-    const h = host.toLowerCase();
     const bytes = ipv6ToBytes(host);
-    if (bytes) {
-      const mapped = ipv4MappedToIpv4(bytes);
-      if (mapped) return isRestrictedIp(mapped);
+    if (!bytes) return false;
+    const mapped = ipv4MappedToIpv4(bytes);
+    if (mapped) return isRestrictedIp(mapped);
+    if (bytes.slice(0, 12).every((b) => b === 0)) {
+      return isRestrictedIp(
+        `${bytes[12]}.${bytes[13]}.${bytes[14]}.${bytes[15]}`,
+      );
     }
-    if (h === "::" || h === "::1") return true;
-    if (
-      h.startsWith("fe8") ||
-      h.startsWith("fe9") ||
-      h.startsWith("fea") ||
-      h.startsWith("feb")
-    ) {
-      return true;
-    }
-    if (h.startsWith("fc") || h.startsWith("fd")) return true;
+    if (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0x80) return true;
+    if ((bytes[0] & 0xfe) === 0xfc) return true;
     return false;
   }
   return false;
@@ -193,7 +188,7 @@ async function resolveSafeHost(hostname) {
   return { address: chosen.address, family: chosen.family };
 }
 
-function sendHttps(url, body, headers, cfg, pinned, deadline) {
+function sendHttps(url, body, headers, pinned, deadline) {
   return new Promise((resolve, reject) => {
     const timeLeft = deadline - Date.now();
     if (timeLeft <= 0) {
@@ -269,7 +264,7 @@ async function deliverOnce(
       `Refusing webhook destination that resolves to a restricted address: ${urlString}`,
     );
   }
-  const res = await sendHttps(url, body, headers, cfg, pinned, deadline);
+  const res = await sendHttps(url, body, headers, pinned, deadline);
   await drainResponse(res, deadline, cfg.maxResponseBodySize);
   if (isRedirect(res.statusCode) && res.headers.location) {
     const next = new URL(res.headers.location, url).toString();
@@ -332,6 +327,8 @@ export async function deliverWithRetry(wh, body, event, cfg = {}) {
   log.error(`Webhook delivery to ${wh.url} exhausted retries`);
 }
 
+const MAX_CONCURRENT_DELIVERIES = 8;
+
 export async function fireWebhooks(event, payload) {
   const cfg = getConfig().webhooks;
   if (!cfg) return;
@@ -348,6 +345,7 @@ export async function fireWebhooks(event, payload) {
     timestamp: new Date().toISOString(),
   });
 
+  const jobs = [];
   for (const wh of webhooks) {
     const events = JSON.parse(wh.events);
     if (!events.includes(event)) continue;
@@ -355,9 +353,19 @@ export async function fireWebhooks(event, payload) {
       log.warn(`Refusing unsafe webhook delivery to ${wh.url}`);
       continue;
     }
-
-    deliverWithRetry(wh, body, event, cfg).catch((err) => {
-      log.error(`Webhook delivery to ${wh.url} crashed: ${err.message}`);
-    });
+    jobs.push(() =>
+      deliverWithRetry(wh, body, event, cfg).catch((err) => {
+        log.error(`Webhook delivery to ${wh.url} crashed: ${err.message}`);
+      }),
+    );
   }
+
+  await Promise.all(
+    Array.from(
+      { length: Math.min(MAX_CONCURRENT_DELIVERIES, jobs.length) },
+      async () => {
+        while (jobs.length) await jobs.shift()();
+      },
+    ),
+  );
 }
