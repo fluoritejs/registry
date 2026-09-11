@@ -1,4 +1,4 @@
-# AGENT.md
+# AGENTS.md
 
 Guidelines for agents writing documentation in this repo. Goal: read like a developer wrote it after using the thing, not like it was generated to describe the thing. This section covers docs (READMEs, guides, changelogs, comments). Other sections may follow for code style, commits, etc.
 
