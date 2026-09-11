@@ -697,6 +697,42 @@ describe("Extensions - publish flow", () => {
   });
 });
 
+describe("Extensions - one pending per owner disabled", () => {
+  let env, token;
+
+  before(async () => {
+    env = await createTestEnv(
+      {},
+      { publishing: { onePendingPerOwner: false } },
+    );
+    await signup(env.app, "multiadmin", "password123");
+    const res = await signup(env.app, "multiowner", "password123");
+    token = res.body.token;
+  });
+
+  after(() => env.cleanup());
+
+  it("allows pending versions in different packages for the same owner", async () => {
+    for (const pkg of ["multi-pkg-a", "multi-pkg-b"]) {
+      const source = `var Fluorite = { manifest: { id: '${pkg}', name: 'Multi', version: '1.0.0', license: 'MIT', description: 'd' } };`;
+      const res = await request(
+        env.app,
+        "POST",
+        `/v0/extensions/@multiowner/${pkg}/versions`,
+        {
+          body: source,
+          headers: {
+            ...authHeaders(token),
+            "Content-Type": "application/javascript",
+          },
+        },
+      );
+      assert.strictEqual(res.status, 201);
+      assert.strictEqual(res.body.status, "pending");
+    }
+  });
+});
+
 describe("Stats", () => {
   let env, owner1Token, owner2Token;
 
