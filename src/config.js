@@ -34,6 +34,7 @@ const CONFIG_DEFAULTS = {
     deliveryTimeoutMs: 5000,
     maxRetries: 3,
     retryBackoffMs: 2000,
+    maxResponseBodySize: 1048576,
     encryptionKey: "",
   },
   server: { shutdownTimeoutMs: 5000, shutdownTimeoutMaxMs: 9000 },
@@ -61,31 +62,35 @@ function deepMerge(base, overrides) {
 }
 
 function parseDuration(s) {
-  if (typeof s === "number") {
-    if (!Number.isFinite(s) || s <= 0) {
-      throw new Error(`Invalid duration: ${s}`);
-    }
-    return s;
-  }
-  const match = String(s).match(/^(\d+)(s|m|h|d)$/);
-  if (!match) throw new Error(`Invalid duration: ${s}`);
-  const n = parseInt(match[1], 10);
   let ms;
-  switch (match[2]) {
-    case "s":
-      ms = n * 1000;
-      break;
-    case "m":
-      ms = n * 60_000;
-      break;
-    case "h":
-      ms = n * 3_600_000;
-      break;
-    case "d":
-      ms = n * 86_400_000;
-      break;
+  if (typeof s === "number") {
+    ms = s;
+  } else {
+    const match = String(s).match(/^(\d+)(s|m|h|d)$/);
+    if (!match) throw new Error(`Invalid duration: ${s}`);
+    const n = parseInt(match[1], 10);
+    switch (match[2]) {
+      case "s":
+        ms = n * 1000;
+        break;
+      case "m":
+        ms = n * 60_000;
+        break;
+      case "h":
+        ms = n * 3_600_000;
+        break;
+      case "d":
+        ms = n * 86_400_000;
+        break;
+    }
   }
-  if (!Number.isFinite(ms) || ms <= 0) {
+  // Reject non-positive durations and any duration that would land outside the
+  // ECMA-262 Date range (matches expiryDate() bounds).
+  if (
+    !Number.isFinite(ms) ||
+    ms <= 0 ||
+    Date.now() + ms > 8_640_000_000_000_000
+  ) {
     throw new Error(`Invalid duration: ${s}`);
   }
   return ms;

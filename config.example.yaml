@@ -42,9 +42,13 @@ webhooks:
   deliveryTimeoutMs: 5000
   maxRetries: 3
   retryBackoffMs: 2000
+  # Maximum bytes drained from a delivery response body before aborting.
+  maxResponseBodySize: 1048576
 
 terms:
-  # Directory containing manifest.yaml, tos.md, and privacy.md.
+  # Directory containing manifest.yaml and versioned markdown files
+  # (tos.<version>.md, privacy.<version>.md); legacy tos.md/privacy.md are
+  # still readable.
   dir: "./terms"
   # When true, authenticated actions require accepting the current
   # Terms of Service and Privacy Policy versions.
