@@ -98,11 +98,7 @@ function statementsIn(node, depth, out) {
     return;
   }
   if (node.type === "SequenceExpression" && node.expressions?.length) {
-    statementsIn(
-      node.expressions[node.expressions.length - 1],
-      depth + 1,
-      out,
-    );
+    statementsIn(node.expressions[node.expressions.length - 1], depth + 1, out);
     return;
   }
   if (node.type === "MemberExpression") {

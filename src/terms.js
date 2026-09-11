@@ -146,6 +146,9 @@ export function publishPair(termsDir, name, content, label, version) {
   const next = prev.then(() =>
     runPublishPair(termsDir, name, content, label, version),
   );
-  publishChains.set(key, next.catch(() => {}));
+  publishChains.set(
+    key,
+    next.catch(() => {}),
+  );
   return next;
 }

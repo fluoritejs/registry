@@ -41,11 +41,7 @@ router.get("/", async (req, res) => {
   const limit = parseLimit(req.query, defaultSize, maxPageSize);
   const offset = parseCursor(req.query);
   const status = req.query.status;
-  if (
-    status !== undefined &&
-    status !== "read" &&
-    status !== "unread"
-  ) {
+  if (status !== undefined && status !== "read" && status !== "unread") {
     return res
       .status(400)
       .json({

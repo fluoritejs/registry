@@ -110,11 +110,7 @@ export function createApp() {
     res
       .status(404)
       .json({
-        error: {
-          code: "NOT_FOUND",
-          message: "Route not found.",
-          field: null,
-        },
+        error: { code: "NOT_FOUND", message: "Route not found.", field: null },
       });
   });
 

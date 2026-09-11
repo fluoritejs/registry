@@ -803,9 +803,7 @@ describe("Stats", () => {
       env.app,
       "GET",
       "/v0/extensions/@owner2/pkg-b/versions/1.0.0",
-      {
-        headers: { Accept: "application/javascript" },
-      },
+      { headers: { Accept: "application/javascript" } },
     );
 
     const res = await request(env.app, "GET", "/v0/stats");
