@@ -107,13 +107,21 @@ export function createApp() {
   );
 
   app.use((err, req, res, _next) => {
-    log.error(`Unhandled error: ${err.message}`);
+    const status =
+      Number.isInteger(err.status) && err.status >= 400 && err.status < 500
+        ? err.status
+        : 500;
+    if (status === 500) {
+      log.error(`Unhandled error: ${err.message}`);
+    } else {
+      log.debug(`Request rejected (${status}): ${err.message}`);
+    }
     res
-      .status(500)
+      .status(status)
       .json({
         error: {
-          code: "INTERNAL_ERROR",
-          message: "An internal error occurred.",
+          code: status === 500 ? "INTERNAL_ERROR" : "BAD_REQUEST",
+          message: status === 500 ? "An internal error occurred." : err.message,
           field: null,
         },
       });
