@@ -236,6 +236,7 @@ router.delete("/:id", (req, res) => {
       });
   }
   getStmt("deleteWebhook").run(req.params.id);
+  log.info(`Webhook deleted: ${req.params.id}`);
   res.status(204).end();
 });
 
