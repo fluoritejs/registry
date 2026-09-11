@@ -1,9 +1,13 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert";
 import crypto from "node:crypto";
-import http from "node:http";
 import { createTestEnv, request, signup, authHeaders } from "./helpers.js";
-import { encryptSecret, deliverWithRetry } from "../src/webhooks.js";
+import {
+  encryptSecret,
+  decryptSecret,
+  deliverWithRetry,
+  signatureHeader,
+} from "../src/webhooks.js";
 import { loadConfig } from "../src/config.js";
 
 describe("Webhooks — encryption key config", () => {
@@ -126,7 +130,7 @@ describe("Webhooks", () => {
     assert.strictEqual(res.body.enabled, false);
   });
 
-  it("rejects loopback and non-http webhook URLs", async () => {
+  it("rejects loopback, IPv6 loopback, and non-https webhook URLs", async () => {
     const create = (url) =>
       request(env.app, "POST", "/v0/webhooks", {
         body: JSON.stringify({ url, events: ["version.published"] }),
@@ -138,9 +142,15 @@ describe("Webhooks", () => {
 
     for (const url of [
       "http://127.0.0.1/hook",
+      "http://[::1]/hook",
+      "https://[::1]/hook",
+      "https://127.0.0.1/hook",
       "http://localhost:4567/hook",
       "http://10.0.0.5/hook",
+      "http://192.168.1.1/hook",
+      "http://fe80::1/hook",
       "file:///etc/passwd",
+      "ftp://example.com/hook",
       "not-a-url",
     ]) {
       const res = await create(url);
@@ -201,51 +211,53 @@ describe("Webhooks", () => {
     assert.strictEqual(res.status, 404);
   });
 
-  it("delivers a verifiable signature to the receiver", async () => {
+  it("encryptSecret and decryptSecret round-trip the plaintext", () => {
+    const secret = "a-plaintext-webhook-secret";
+    const encrypted = encryptSecret(secret, encryptionKey);
+    assert.notStrictEqual(encrypted, secret);
+    assert.strictEqual(decryptSecret(encrypted), secret);
+  });
+
+  it("computes the documented X-Fluorite-Signature HMAC", () => {
     const secret = crypto.randomBytes(32).toString("hex");
     const encryptedSecret = encryptSecret(secret, encryptionKey);
-
-    let received = null;
-    const server = http.createServer((req, res) => {
-      let body = "";
-      req.on("data", (chunk) => {
-        body += chunk;
-      });
-      req.on("end", () => {
-        received = { body, signature: req.headers["x-fluorite-signature"] };
-        res.writeHead(200);
-        res.end("ok");
-      });
-    });
-
-    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-    const { port } = server.address();
-    server.unref();
-
-    const body = JSON.stringify({
-      event: "version.published",
-      extension: { namespace: "whadmin", id: "test-ext" },
-      version: { version: "1.0.0", status: "published" },
-      timestamp: new Date().toISOString(),
-    });
-
-    await deliverWithRetry(
-      { url: `http://127.0.0.1:${port}/hook`, secret: encryptedSecret },
-      body,
-      "version.published",
-      { maxRetries: 0, deliveryTimeoutMs: 5000, retryBackoffMs: 0 },
-    );
-
-    server.close();
-    assert.ok(received, "Receiver should have gotten a request");
-
-    const payload = JSON.parse(received.body);
-    assert.strictEqual(payload.event, "version.published");
-    assert.strictEqual(payload.extension.id, "test-ext");
-
-    const expectedSig =
+    const plaintext = decryptSecret(encryptedSecret);
+    const body = JSON.stringify({ event: "version.published" });
+    const expected =
       "sha256=" +
-      crypto.createHmac("sha256", secret).update(received.body).digest("hex");
-    assert.strictEqual(received.signature, expectedSig);
+      crypto.createHmac("sha256", secret).update(body).digest("hex");
+    assert.strictEqual(signatureHeader(body, plaintext), expected);
+  });
+
+  it("refuses webhook delivery over plain HTTP", async () => {
+    const encryptedSecret = encryptSecret(
+      crypto.randomBytes(32).toString("hex"),
+      encryptionKey,
+    );
+    await assert.rejects(
+      deliverWithRetry(
+        { url: "http://example.com/hook", secret: encryptedSecret },
+        "{}",
+        "version.published",
+        { maxRetries: 0, deliveryTimeoutMs: 5000, retryBackoffMs: 0 },
+      ),
+      /HTTPS/,
+    );
+  });
+
+  it("refuses webhook delivery to destinations resolving to loopback", async () => {
+    const encryptedSecret = encryptSecret(
+      crypto.randomBytes(32).toString("hex"),
+      encryptionKey,
+    );
+    await assert.rejects(
+      deliverWithRetry(
+        { url: "https://localhost/hook", secret: encryptedSecret },
+        "{}",
+        "version.published",
+        { maxRetries: 0, deliveryTimeoutMs: 5000, retryBackoffMs: 0 },
+      ),
+      /restricted/,
+    );
   });
 });

@@ -1,8 +1,12 @@
 import crypto from "node:crypto";
 import net from "node:net";
+import { lookup as dnsLookup } from "node:dns/promises";
+import https from "node:https";
 import { getStmt } from "./db.js";
 import { log } from "./logger.js";
 import { getConfig } from "./config.js";
+
+const MAX_REDIRECTS = 5;
 
 export function getEncryptionKey() {
   const key = getConfig().webhooks?.encryptionKey;
@@ -45,6 +49,16 @@ export function decryptSecret(stored) {
   return decipher.update(encrypted, undefined, "utf8") + decipher.final("utf8");
 }
 
+export function signatureHeader(body, plaintext) {
+  return `sha256=${crypto.createHmac("sha256", plaintext).update(body).digest("hex")}`;
+}
+
+function normalizeHost(hostname) {
+  return String(hostname)
+    .replace(/^\[|\]$/g, "")
+    .toLowerCase();
+}
+
 export function isSafeWebhookUrl(rawUrl) {
   let parsed;
   try {
@@ -52,17 +66,16 @@ export function isSafeWebhookUrl(rawUrl) {
   } catch {
     return false;
   }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    return false;
-  }
+  if (parsed.protocol !== "https:") return false;
   if (!parsed.hostname) return false;
   if (parsed.username || parsed.password) return false;
-  const host = parsed.hostname.toLowerCase();
+  const host = normalizeHost(parsed.hostname);
   if (host === "localhost" || host.endsWith(".localhost")) return false;
-  return !isRestrictedIp(host);
+  if (net.isIP(host) && isRestrictedIp(host)) return false;
+  return true;
 }
 
-function isRestrictedIp(host) {
+export function isRestrictedIp(host) {
   if (net.isIPv4(host)) {
     const [a, b, c] = host.split(".").map(Number);
     if (a === 0 || a === 10 || a === 127) return true;
@@ -79,6 +92,8 @@ function isRestrictedIp(host) {
   }
   if (net.isIPv6(host)) {
     const h = host.toLowerCase();
+    const v4 = h.startsWith("::ffff:") ? h.slice(7) : null;
+    if (v4 && net.isIPv4(v4)) return isRestrictedIp(v4);
     if (h === "::" || h === "::1") return true;
     if (
       h.startsWith("fe8") ||
@@ -92,6 +107,136 @@ function isRestrictedIp(host) {
     return false;
   }
   return false;
+}
+
+function permanentError(message) {
+  const err = new Error(message);
+  err.permanent = true;
+  return err;
+}
+
+async function resolveSafeHost(hostname) {
+  const host = normalizeHost(hostname);
+  let candidates;
+  if (net.isIP(host)) {
+    candidates = [{ address: host, family: net.isIPv6(host) ? 6 : 4 }];
+  } else {
+    try {
+      candidates = await dnsLookup(host, { all: true, verbatim: true });
+    } catch {
+      return null;
+    }
+  }
+  const safe = candidates.filter(
+    (candidate) => !isRestrictedIp(normalizeHost(candidate.address)),
+  );
+  if (!safe.length) return null;
+  const chosen = safe[0];
+  return { address: chosen.address, family: chosen.family };
+}
+
+function sendHttps(url, body, headers, cfg, pinned) {
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: url.hostname,
+        port: url.port || 443,
+        path: `${url.pathname}${url.search}`,
+        method: "POST",
+        headers,
+        family: pinned.family,
+        lookup: (_hostname, _options, cb) =>
+          cb(null, pinned.address, pinned.family),
+      },
+      (res) => resolve(res),
+    );
+    req.setTimeout(cfg.deliveryTimeoutMs, () => {
+      req.destroy(new Error("Webhook delivery timed out"));
+    });
+    req.on("error", reject);
+    req.end(body);
+  });
+}
+
+function drainResponse(res) {
+  return new Promise((resolve) => {
+    res.resume();
+    res.on("end", resolve);
+  });
+}
+
+function isRedirect(statusCode) {
+  return [301, 302, 303, 307, 308].includes(statusCode);
+}
+
+async function deliverOnce(urlString, body, headers, cfg, redirectCount) {
+  if (redirectCount > MAX_REDIRECTS) {
+    throw permanentError("Webhook redirect limit exceeded.");
+  }
+  const url = new URL(urlString);
+  if (url.protocol !== "https:") {
+    throw permanentError(
+      `Refusing non-HTTPS webhook destination: ${urlString}`,
+    );
+  }
+  const pinned = await resolveSafeHost(url.hostname);
+  if (!pinned) {
+    throw permanentError(
+      `Refusing webhook destination that resolves to a restricted address: ${urlString}`,
+    );
+  }
+  const res = await sendHttps(url, body, headers, cfg, pinned);
+  await drainResponse(res);
+  if (isRedirect(res.statusCode) && res.headers.location) {
+    const next = new URL(res.headers.location, url).toString();
+    return deliverOnce(next, body, headers, cfg, redirectCount + 1);
+  }
+  return res.statusCode;
+}
+
+export async function deliverWithRetry(wh, body, event, cfg = {}) {
+  if (!wh.secret) {
+    throw new Error("Webhook has no secret");
+  }
+  const plaintext = decryptSecret(wh.secret);
+  const headers = {
+    "Content-Type": "application/json",
+    "X-Fluorite-Signature": signatureHeader(body, plaintext),
+  };
+  const deliveryCfg = {
+    maxRetries: cfg.maxRetries ?? 0,
+    deliveryTimeoutMs: cfg.deliveryTimeoutMs ?? 5000,
+    retryBackoffMs: cfg.retryBackoffMs ?? 0,
+  };
+
+  for (let attempt = 0; attempt <= deliveryCfg.maxRetries; attempt++) {
+    try {
+      const status = await deliverOnce(wh.url, body, headers, deliveryCfg, 0);
+      if (status >= 200 && status < 300) {
+        log.debug(`Webhook delivered to ${wh.url} (${event})`);
+        return;
+      }
+      log.warn(
+        `Webhook delivery to ${wh.url} returned ${status} (attempt ${attempt + 1})`,
+      );
+    } catch (err) {
+      if (err && err.permanent) {
+        log.warn(`Refusing webhook delivery to ${wh.url}: ${err.message}`);
+        throw err;
+      }
+      log.warn(
+        `Webhook delivery to ${wh.url} failed: ${err.message} (attempt ${attempt + 1})`,
+      );
+    }
+
+    if (attempt < deliveryCfg.maxRetries) {
+      await new Promise((r) =>
+        setTimeout(r, deliveryCfg.retryBackoffMs * (attempt + 1)),
+      );
+    }
+  }
+
+  log.error(`Webhook delivery to ${wh.url} exhausted retries`);
 }
 
 export function fireWebhooks(event, payload) {
@@ -120,52 +265,4 @@ export function fireWebhooks(event, payload) {
       log.error(`Webhook delivery to ${wh.url} crashed: ${err.message}`);
     });
   }
-}
-
-export async function deliverWithRetry(wh, body, event, cfg) {
-  if (!wh.secret) {
-    throw new Error(`Webhook has no secret`);
-  }
-  const plaintext = decryptSecret(wh.secret);
-  const signature = `sha256=${crypto.createHmac("sha256", plaintext).update(body).digest("hex")}`;
-
-  for (let attempt = 0; attempt <= cfg.maxRetries; attempt++) {
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), cfg.deliveryTimeoutMs);
-
-      const res = await fetch(wh.url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Fluorite-Signature": signature,
-        },
-        body,
-        signal: controller.signal,
-        redirect: "manual",
-      });
-
-      clearTimeout(timer);
-
-      if (res.ok) {
-        log.debug(`Webhook delivered to ${wh.url} (${event})`);
-        return;
-      }
-      log.warn(
-        `Webhook delivery to ${wh.url} returned ${res.status} (attempt ${attempt + 1})`,
-      );
-    } catch (err) {
-      log.warn(
-        `Webhook delivery to ${wh.url} failed: ${err.message} (attempt ${attempt + 1})`,
-      );
-    }
-
-    if (attempt < cfg.maxRetries) {
-      await new Promise((r) =>
-        setTimeout(r, cfg.retryBackoffMs * (attempt + 1)),
-      );
-    }
-  }
-
-  log.error(`Webhook delivery to ${wh.url} exhausted retries`);
 }
