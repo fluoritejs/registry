@@ -105,12 +105,14 @@
 3. Start the server:
 
    ```bash
+   cd registry-storage
    docker compose up -d
    ```
 
    OR if you're using Podman:
 
    ```bash
+   cd registry-storage
    podman compose up -d
    ```
 
