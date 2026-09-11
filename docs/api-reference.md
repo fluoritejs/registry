@@ -109,7 +109,7 @@ List active (non-expired) session tokens. **Requires auth.**
 ```json
 [
   {
-    "id": "token_hash_sha256",
+    "id": 3,
     "createdAt": "2026-01-01T00:00:00.000Z",
     "expiresAt": "2026-01-08T00:00:00.000Z"
   }
@@ -128,7 +128,7 @@ Revoke all session tokens. **Requires auth.**
 
 ### DELETE /v0/auth/sessions/:id
 
-Revoke a specific session by its token hash (the `id` field from the sessions list). **Requires auth.**
+Revoke a specific session by its numeric id (the `id` field from the sessions list). **Requires auth.**
 
 **Response 204** or 404.
 

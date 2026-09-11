@@ -483,7 +483,9 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            type: integer
+            format: int32
+            minimum: 1
       responses:
         "204":
           description: Session revoked.
