@@ -58,7 +58,7 @@ router.post("/signup", rateLimitMiddleware("signup"), (req, res) => {
         },
       });
   }
-  if (password.length < 8) {
+  if (typeof password !== "string" || password.length < 8) {
     return res
       .status(400)
       .json({
@@ -151,7 +151,7 @@ router.post("/signup", rateLimitMiddleware("signup"), (req, res) => {
 router.post("/login", rateLimitMiddleware("login"), (req, res) => {
   const { namespace, password } = req.body;
 
-  if (!namespace || !password) {
+  if (!namespace || typeof password !== "string" || !password) {
     return res
       .status(401)
       .json({
