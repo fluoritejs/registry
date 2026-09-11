@@ -95,7 +95,19 @@ router.delete("/", async (req, res) => {
 });
 
 router.patch("/:id", async (req, res) => {
-  const n = await getStmt("getNotification").get(Number(req.params.id));
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    return res
+      .status(404)
+      .json({
+        error: {
+          code: "NOT_FOUND",
+          message: "Notification not found.",
+          field: null,
+        },
+      });
+  }
+  const n = await getStmt("getNotification").get(id);
   if (!n || n.user_id !== req.auth.user.id) {
     return res
       .status(404)
@@ -112,7 +124,19 @@ router.patch("/:id", async (req, res) => {
 });
 
 router.delete("/:id", async (req, res) => {
-  const n = await getStmt("getNotification").get(Number(req.params.id));
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    return res
+      .status(404)
+      .json({
+        error: {
+          code: "NOT_FOUND",
+          message: "Notification not found.",
+          field: null,
+        },
+      });
+  }
+  const n = await getStmt("getNotification").get(id);
   if (!n || n.user_id !== req.auth.user.id) {
     return res
       .status(404)
