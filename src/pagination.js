@@ -23,7 +23,7 @@ export function parseKeysetCursor(query) {
     const decoded = JSON.parse(
       Buffer.from(String(query.cursor), "base64").toString(),
     );
-    if (Number.isFinite(decoded.sortKey)) {
+    if (Number.isInteger(decoded.sortKey) && decoded.sortKey >= 0) {
       return decoded.sortKey;
     }
   } catch {
