@@ -43,11 +43,10 @@ export function expiryDate() {
 }
 
 function successResponse(res, user, token, config) {
-  const unread =
-    config.notifications?.includeUnreadCountHeader !== false
-      ? getStmt("countUnreadNotifications").get(user.id).count
-      : 0;
-  res.set("X-Unread-Notifications", String(unread));
+  if (config.notifications?.includeUnreadCountHeader !== false) {
+    const unread = getStmt("countUnreadNotifications").get(user.id).count;
+    res.set("X-Unread-Notifications", String(unread));
+  }
   return {
     user: {
       namespace: user.namespace,
