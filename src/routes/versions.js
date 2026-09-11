@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { adminMiddleware } from "../auth.js";
 import { getStmt } from "../db.js";
 import { getConfig } from "../config.js";
 import { parseCursor, encodeCursor, parseLimit } from "../pagination.js";
@@ -6,19 +7,7 @@ import { versionJson } from "../version-json.js";
 
 const router = Router();
 
-router.get("/", (req, res) => {
-  if (!req.auth || req.auth.user.type !== "admin") {
-    return res
-      .status(403)
-      .json({
-        error: {
-          code: "FORBIDDEN",
-          message: "Admin access required.",
-          field: null,
-        },
-      });
-  }
-
+router.get("/", adminMiddleware, (req, res) => {
   const config = getConfig();
   const maxPageSize = config.listings.maxPageSize;
   const defaultSize = config.listings.defaultPageSize;
