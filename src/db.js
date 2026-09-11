@@ -60,8 +60,9 @@ export function migrate(db) {
       UNIQUE(owner_id, package_id, version)
     );
 
-    CREATE UNIQUE INDEX IF NOT EXISTS versions_one_pending_per_owner
-      ON versions(owner_id) WHERE status IN ('staging', 'pending');
+    DROP INDEX IF EXISTS versions_one_pending_per_owner;
+    CREATE UNIQUE INDEX IF NOT EXISTS versions_one_pending_per_owner_package
+      ON versions(owner_id, package_id) WHERE status IN ('staging', 'pending');
 
     CREATE TABLE IF NOT EXISTS notifications (
       id INTEGER PRIMARY KEY,

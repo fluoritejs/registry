@@ -128,7 +128,7 @@ Changing `passwordHashing` parameters only affects new passwords. Existing hashe
 | Key                          | Default                                  | Description                                                                             |
 | ---------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------- |
 | `firstPublishRequiresReview` | `true`                                   | New (untrusted) users' first publish goes to `pending` status and needs admin approval. |
-| `onePendingPerOwner`         | `true`                                   | Each user can have at most one `pending` or `staging` version at a time.                |
+| `onePendingPerOwner`         | `true`                                   | When `true`, each user can have at most one `pending` or `staging` version at a time across all extensions. When `false`, a user may have a pending version in several extensions, but only one per extension. |
 | `namespacePattern`           | `^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$` | Regex for validating user namespaces on signup.                                         |
 | `packageIdPattern`           | `^[a-zA-Z0-9](?:[a-zA-Z0-9._-]{0,63})$`  | Regex for validating extension IDs in manifests.                                        |
 
