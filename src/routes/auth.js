@@ -44,7 +44,7 @@ router.get("/me", sessionAuth, (req, res) => {
 });
 
 router.post("/signup", rateLimitMiddleware("signup"), (req, res) => {
-  const { namespace, password, displayName } = req.body;
+  const { namespace, password, displayName } = req.body ?? {};
   const config = getConfig();
 
   if (!namespace || !password) {
@@ -149,7 +149,7 @@ router.post("/signup", rateLimitMiddleware("signup"), (req, res) => {
 });
 
 router.post("/login", rateLimitMiddleware("login"), (req, res) => {
-  const { namespace, password } = req.body;
+  const { namespace, password } = req.body ?? {};
 
   if (!namespace || typeof password !== "string" || !password) {
     return res
@@ -273,7 +273,7 @@ router.get("/tokens", sessionAuth, (req, res) => {
 });
 
 router.post("/tokens", sessionAuth, (req, res) => {
-  const { name, scopes } = req.body;
+  const { name, scopes } = req.body ?? {};
   if (!name || !scopes || !Array.isArray(scopes) || scopes.length === 0) {
     return res
       .status(400)
