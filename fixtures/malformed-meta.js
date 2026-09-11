@@ -1,5 +1,6 @@
 var __sideEffect = false;
 try {
+  globalThis.__fluoriteTestSentinel = true;
   require("child_process").execSync("echo pwned");
   __sideEffect = true;
 } catch (e) {

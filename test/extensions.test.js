@@ -51,6 +51,7 @@ describe("Manifest extraction", () => {
   });
 
   it("rejects malformed source without executing side effects", () => {
+    delete globalThis.__fluoriteTestSentinel;
     let threw = false;
     try {
       extractManifest(MALFORMED_SOURCE, config.publishing.packageIdPattern);
@@ -59,6 +60,11 @@ describe("Manifest extraction", () => {
       assert.ok(err.message.includes("No Fluorite manifest"));
     }
     assert.ok(threw, "Should have thrown for malformed source");
+    assert.strictEqual(
+      globalThis.__fluoriteTestSentinel,
+      undefined,
+      "malformed source must never be evaluated",
+    );
   });
 
   it("rejects invalid version", () => {

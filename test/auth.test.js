@@ -142,6 +142,11 @@ describe("Auth", () => {
         headers: authHeaders(token),
       });
       assert.strictEqual(res.status, 204);
+
+      const second = await request(env.app, "GET", "/v0/auth/me", {
+        headers: authHeaders(token),
+      });
+      assert.strictEqual(second.status, 401);
     });
   });
 

@@ -86,6 +86,15 @@ describe("Notifications", () => {
       { headers: authHeaders(userToken) },
     );
     assert.strictEqual(res.status, 204);
+
+    const list = await request(
+      env.app,
+      "GET",
+      "/v0/notifications?status=read",
+      { headers: authHeaders(userToken) },
+    );
+    assert.strictEqual(list.status, 200);
+    assert.strictEqual(list.body.notifications.length, 0);
   });
 
   it("returns unread count header", async () => {

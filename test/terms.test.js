@@ -282,6 +282,7 @@ describe("Terms — missing manifest", () => {
 
   before(async () => {
     env = createTestEnv({}, { terms: { enforce: true } });
+    await signup(env.app, "nomanifestadmin", "password123");
     mkdirSync(join(env.dataDir, "terms"), { recursive: true });
     unlinkSync(join(env.dataDir, "terms", "manifest.yaml"));
     const res = await signup(env.app, "nomanifest", "password123");
