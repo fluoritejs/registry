@@ -311,7 +311,7 @@ export function prepare(db) {
   s(
     "listVersionsWorklist",
     `SELECT v.*, u.namespace FROM versions v JOIN users u ON v.owner_id = u.id
-    WHERE v.status = ? ORDER BY v.id DESC LIMIT ? OFFSET ?`,
+    WHERE v.status = ? AND v.id < ? ORDER BY v.id DESC LIMIT ?`,
   );
   s(
     "countVersionsByStatus",
