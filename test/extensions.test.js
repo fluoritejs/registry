@@ -552,3 +552,68 @@ describe("Extensions - publish flow", () => {
     assert.strictEqual(checkAfter.body.trusted, true);
   });
 });
+
+describe("Stats", () => {
+  let env, owner1Token, owner2Token;
+
+  before(async () => {
+    env = createTestEnv(
+      {},
+      { publishing: { firstPublishRequiresReview: false } },
+    );
+    const adminRes = await signup(env.app, "statsadmin", "password123");
+    owner1Token = adminRes.body.token;
+    const user2Res = await signup(env.app, "owner2", "password123");
+    owner2Token = user2Res.body.token;
+  });
+
+  after(() => env.cleanup());
+
+  it("counts distinct owners and packages, not raw version rows", async () => {
+    const src1a = `var Fluorite = { manifest: { id: 'pkg-a', name: 'Pkg A', version: '1.0.0', license: 'MIT', description: 'd' } };`;
+    const src1b = `var Fluorite = { manifest: { id: 'pkg-a', name: 'Pkg A', version: '2.0.0', license: 'MIT', description: 'd' } };`;
+    const src2 = `var Fluorite = { manifest: { id: 'pkg-b', name: 'Pkg B', version: '1.0.0', license: 'MIT', description: 'd' } };`;
+
+    await request(
+      env.app,
+      "POST",
+      "/v0/extensions/@statsadmin/pkg-a/versions",
+      {
+        body: src1a,
+        headers: {
+          ...authHeaders(owner1Token),
+          "Content-Type": "application/javascript",
+        },
+      },
+    );
+    await request(
+      env.app,
+      "POST",
+      "/v0/extensions/@statsadmin/pkg-a/versions",
+      {
+        body: src1b,
+        headers: {
+          ...authHeaders(owner1Token),
+          "Content-Type": "application/javascript",
+        },
+      },
+    );
+    await request(
+      env.app,
+      "POST",
+      "/v0/extensions/@owner2/pkg-b/versions",
+      {
+        body: src2,
+        headers: {
+          ...authHeaders(owner2Token),
+          "Content-Type": "application/javascript",
+        },
+      },
+    );
+
+    const res = await request(env.app, "GET", "/v0/stats");
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.published, 2);
+    assert.strictEqual(res.body.authors, 2);
+  });
+});

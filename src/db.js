@@ -384,9 +384,9 @@ export function prepare(db) {
   s(
     "stats",
     `SELECT
-    (SELECT COUNT(*) FROM versions WHERE status = 'published') as published,
+    (SELECT COUNT(*) FROM (SELECT DISTINCT owner_id, package_id FROM versions WHERE status = 'published')) as published,
     (SELECT COUNT(*) FROM versions WHERE status = 'pending') as pending,
-    (SELECT COUNT(*) FROM users) as authors,
+    (SELECT COUNT(DISTINCT owner_id) FROM versions WHERE status = 'published') as authors,
     (SELECT COALESCE(SUM(downloads), 0) FROM versions WHERE status = 'published') as totalDownloads`,
   );
 

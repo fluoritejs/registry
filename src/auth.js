@@ -263,6 +263,7 @@ export function scopeMiddleware(scope) {
           },
         });
     }
+    if (req.auth.tokenKind === "session") return next();
     if (!req.auth.scopes.includes(scope)) {
       return res
         .status(403)

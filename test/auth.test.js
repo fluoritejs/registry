@@ -185,13 +185,14 @@ describe("Auth", () => {
     });
     after(() => env.cleanup());
 
-    it("lists active sessions", async () => {
+    it("lists active sessions with numeric ids", async () => {
       const res = await request(env.app, "GET", "/v0/auth/sessions", {
         headers: authHeaders(token),
       });
       assert.strictEqual(res.status, 200);
       assert.ok(Array.isArray(res.body));
       assert.ok(res.body.length >= 1);
+      assert.strictEqual(typeof res.body[0].id, "number");
     });
 
     it("revokes all sessions", async () => {
@@ -199,6 +200,22 @@ describe("Auth", () => {
         headers: authHeaders(token),
       });
       assert.strictEqual(res.status, 204);
+    });
+
+    it("revokes a specific session by numeric id", async () => {
+      const loginRes = await login(env.app, "sessionuser", "password123");
+      const newToken = loginRes.body.token;
+      const listRes = await request(env.app, "GET", "/v0/auth/sessions", {
+        headers: authHeaders(newToken),
+      });
+      const sessionId = listRes.body[0].id;
+      const delRes = await request(
+        env.app,
+        "DELETE",
+        `/v0/auth/sessions/${sessionId}`,
+        { headers: authHeaders(newToken) },
+      );
+      assert.strictEqual(delRes.status, 204);
     });
   });
 

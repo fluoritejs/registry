@@ -205,7 +205,7 @@ router.get("/sessions", sessionAuth, (req, res) => {
   const active = sessions
     .filter((s) => new Date(s.expires_at) > now)
     .map((s) => ({
-      id: s.token_hash,
+      id: s.id,
       createdAt: s.created_at,
       expiresAt: s.expires_at,
     }));
@@ -218,8 +218,20 @@ router.delete("/sessions", sessionAuth, (req, res) => {
 });
 
 router.delete("/sessions/:id", sessionAuth, (req, res) => {
+  const sessionId = Number(req.params.id);
+  if (!Number.isFinite(sessionId) || sessionId <= 0) {
+    return res
+      .status(404)
+      .json({
+        error: {
+          code: "NOT_FOUND",
+          message: "Session not found.",
+          field: null,
+        },
+      });
+  }
   const sessions = getStmt("listAuthTokens").all(req.auth.user.id);
-  const session = sessions.find((s) => s.token_hash === req.params.id);
+  const session = sessions.find((s) => s.id === sessionId);
   if (!session) {
     return res
       .status(404)
