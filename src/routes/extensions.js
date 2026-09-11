@@ -138,6 +138,21 @@ router.get("/:namespace/:id", (req, res) => {
   }
 
   const statusFilter = req.query.status;
+  if (
+    statusFilter !== undefined &&
+    statusFilter !== "all" &&
+    statusFilter !== "published"
+  ) {
+    return res
+      .status(400)
+      .json({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: 'status must be "published" or "all".',
+          field: "status",
+        },
+      });
+  }
   let versions;
   if (statusFilter === "all") {
     if (
@@ -159,7 +174,7 @@ router.get("/:namespace/:id", (req, res) => {
     versions = getStmt("listVersionsByExtension").all(namespace, id);
   }
 
-  if (!versions.length && !statusFilter) {
+  if (!versions.length) {
     return res
       .status(404)
       .json({
