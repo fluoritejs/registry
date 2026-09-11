@@ -84,6 +84,30 @@ describe("Manifest extraction", () => {
     }
     assert.ok(threw);
   });
+
+  it("rejects duplicate manifest fields", () => {
+    const source = `var Fluorite = { manifest: { id: 'dup', name: 'T', version: '1.0.0', version: '2.0.0', license: 'MIT', description: 'd' } };`;
+    let threw = false;
+    try {
+      extractManifest(source, pattern);
+    } catch (err) {
+      threw = true;
+      assert.ok(err.message.includes('Duplicate "version"'));
+    }
+    assert.ok(threw);
+  });
+
+  it("rejects repeated Fluorite.manifest definitions", () => {
+    const source = `var Fluorite = { manifest: { id: 'dup', name: 'T', version: '1.0.0', license: 'MIT', description: 'd' } }; Fluorite.manifest = { id: 'dup', name: 'T', version: '1.0.0', license: 'MIT', description: 'd' };`;
+    let threw = false;
+    try {
+      extractManifest(source, pattern);
+    } catch (err) {
+      threw = true;
+      assert.ok(err.message.includes("Duplicate Fluorite.manifest"));
+    }
+    assert.ok(threw);
+  });
 });
 
 describe("Extensions - review disabled", () => {

@@ -4,12 +4,16 @@ import { isSafeSegment } from "./validate.js";
 
 function extractProperty(node, name) {
   if (node.type !== "ObjectExpression") return undefined;
-  const prop = node.properties.find((p) => {
+  const props = node.properties.filter((p) => {
     if (p.type !== "Property") return false;
     if (p.key.type === "Identifier") return p.key.name === name;
     if (p.key.type === "Literal") return p.key.value === name;
     return false;
   });
+  if (props.length > 1) {
+    throw new Error(`Duplicate "${name}" in Fluorite manifest`);
+  }
+  const prop = props[0];
   if (!prop) return undefined;
   if (prop.value.type === "Literal") return prop.value.value;
   return undefined;
@@ -20,6 +24,10 @@ function isManifestKey(key) {
 }
 
 function findManifestObject(stmts) {
+  let found = null;
+  const tooMany = (keyName) => {
+    throw new Error(`Duplicate Fluorite.${keyName} definitions`);
+  };
   for (const node of stmts) {
     if (
       node.type === "ExpressionStatement" &&
@@ -33,7 +41,8 @@ function findManifestObject(stmts) {
         left.property.type === "Identifier" &&
         isManifestKey(left.property.name)
       ) {
-        return node.expression.right;
+        if (found) tooMany("manifest");
+        found = node.expression.right;
       }
     }
 
@@ -41,7 +50,7 @@ function findManifestObject(stmts) {
       for (const decl of node.declarations) {
         if (decl.id.type === "Identifier" && decl.id.name === "Fluorite") {
           if (decl.init?.type === "ObjectExpression") {
-            const manifestProp = decl.init.properties.find((p) => {
+            const manifestProps = decl.init.properties.filter((p) => {
               if (p.type !== "Property") return false;
               const keyName =
                 p.key.type === "Identifier"
@@ -51,13 +60,17 @@ function findManifestObject(stmts) {
                     : null;
               return isManifestKey(keyName);
             });
-            if (manifestProp) return manifestProp.value;
+            if (manifestProps.length > 1) tooMany("manifest");
+            if (manifestProps.length === 1) {
+              if (found) tooMany("manifest");
+              found = manifestProps[0].value;
+            }
           }
         }
       }
     }
   }
-  return null;
+  return found;
 }
 
 function nestedStatements(node, out) {
