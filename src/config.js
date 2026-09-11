@@ -129,12 +129,72 @@ function validateDeployment(d) {
   }
 }
 
+function resolveBootstrapPassword(account) {
+  let password = account.password;
+  if (account.passwordFromEnv !== undefined) {
+    if (
+      typeof account.passwordFromEnv !== "string" ||
+      !account.passwordFromEnv
+    ) {
+      throw new Error(
+        "deployment.yaml: admin.bootstrapAccount.passwordFromEnv must name an environment variable.",
+      );
+    }
+    const envValue = process.env[account.passwordFromEnv];
+    if (!envValue) {
+      throw new Error(
+        `deployment.yaml: admin.bootstrapAccount.passwordFromEnv refers to ${account.passwordFromEnv}, which is not set.`,
+      );
+    }
+    password = envValue;
+  }
+  if (account.passwordFile !== undefined) {
+    if (typeof account.passwordFile !== "string" || !account.passwordFile) {
+      throw new Error(
+        "deployment.yaml: admin.bootstrapAccount.passwordFile must be a file path.",
+      );
+    }
+    try {
+      password = readFileSync(account.passwordFile, "utf8").replace(
+        /\r?\n$/,
+        "",
+      );
+    } catch (err) {
+      throw new Error(
+        `deployment.yaml: could not read admin.bootstrapAccount.passwordFile ${account.passwordFile}: ${err.message}`,
+        { cause: err },
+      );
+    }
+  }
+  return password;
+}
+
+function validateBootstrapPassword(password) {
+  if (password === "change-me-immediately" || password === "REPLACE_ME") {
+    throw new Error(
+      "deployment.yaml: admin.bootstrapAccount password is still a placeholder. " +
+        "Generate an operator password and set it via passwordFromEnv or passwordFile.",
+    );
+  }
+  if (typeof password !== "string" || password.length < 8) {
+    throw new Error(
+      "deployment.yaml: admin.bootstrapAccount password must be at least 8 characters.",
+    );
+  }
+}
+
 export function loadDeployment(overrides = {}) {
   const raw = deepMerge(
     DEPLOYMENT_DEFAULTS,
     deepMerge(loadYaml(resolve("deployment.yaml")), overrides),
   );
   validateDeployment(raw);
+  if (raw.admin.bootstrapAccount) {
+    raw.admin.bootstrapAccount.password = resolveBootstrapPassword(
+      raw.admin.bootstrapAccount,
+    );
+    validateBootstrapPassword(raw.admin.bootstrapAccount.password);
+  }
   raw.storage.dataDir = resolve(raw.storage.dataDir);
   return raw;
 }

@@ -15,10 +15,12 @@ admin:
   # bootstrapAccount below instead.
   firstUserBecomesAdmin: false
 
-  # Required when firstUserBecomesAdmin is false. The password is
-  # operator-generated before exposing the service; it is hashed on first
-  # boot, then discarded.
+  # Required when firstUserBecomesAdmin is false. The password is sourced from
+  # the environment (passwordFromEnv) or a secret file (passwordFile), never
+  # stored in deployment.yaml. It is hashed on first boot, then discarded; the
+  # account keeps working via its hashed credentials, so the secret can be
+  # removed or rotated after the account exists.
   bootstrapAccount:
     namespace: admin
-    password: change-me-immediately # operator generated, hashed on first boot, then discarded
+    passwordFromEnv: FLUORITE_BOOTSTRAP_PASSWORD # operator generated, 8+ chars
     displayName: Administrator

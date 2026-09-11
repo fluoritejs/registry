@@ -20,7 +20,7 @@ admin:
   # OR
   # bootstrapAccount:
   #   namespace: admin
-  #   password: CHANGE_ME   # generate a random password, e.g. openssl rand -base64 24
+  #   passwordFromEnv: FLUORITE_BOOTSTRAP_PASSWORD  # or passwordFile: <path>; never put the password in this file
   #   displayName: "Administrator"
 ```
 
@@ -40,12 +40,14 @@ admin:
 
 ### admin
 
-| Key                     | Default | Description                                                                                               |
-| ----------------------- | ------- | --------------------------------------------------------------------------------------------------------- |
-| `firstUserBecomesAdmin` | `true`  | First signup gets `type: admin` and `trusted: true`.                                                      |
-| `bootstrapAccount`      | `null`  | If set, creates an admin user on startup. Requires `namespace` and `password`; `displayName` is optional. |
+| Key                     | Default | Description                                                                                                                                            |
+| ----------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `firstUserBecomesAdmin` | `true`  | First signup gets `type: admin` and `trusted: true`.                                                                                                   |
+| `bootstrapAccount`      | `null`  | If set, creates an admin user on startup. Requires `namespace` and one of `password`, `passwordFromEnv`, or `passwordFile`; `displayName` is optional. |
 
 `firstUserBecomesAdmin` and `bootstrapAccount` are mutually exclusive. Setting both, or setting `firstUserBecomesAdmin: false` without a `bootstrapAccount`, causes a startup error.
+
+The bootstrap password is resolved at startup in this order: `passwordFromEnv` (an environment variable name), then `passwordFile` (a path whose first line is the password), falling back to `password` for explicit overrides. Placeholders (`change-me-immediately`, `REPLACE_ME`) and passwords shorter than 8 characters are rejected. Once the account exists the password is hashed and discarded, so the environment variable or secret file can be removed or rotated safely after first boot.
 
 ## config.yaml
 

@@ -56,12 +56,14 @@ admin:
   firstUserBecomesAdmin: false
   bootstrapAccount:
     namespace: admin
-    password: CHANGE_ME # generate a random password, e.g. openssl rand -base64 24
+    passwordFromEnv: FLUORITE_BOOTSTRAP_PASSWORD # generates a random password, e.g. FLUORITE_BOOTSTRAP_PASSWORD=$(openssl rand -base64 24)
 ```
 
 **Option B — bootstrapAccount**
 
 Set `firstUserBecomesAdmin: false` and provide a `bootstrapAccount`. The server creates this user on startup if it doesn't already exist. The user gets `type: admin` and `trusted: true`.
+
+The password comes from `passwordFromEnv` (environment variable) or `passwordFile` (secret file) — it is never stored in `deployment.yaml`. The server hashes it on first boot and discards it, so after the account exists you can unset the environment variable or rotate the secret file.
 
 The two options are mutually exclusive. Setting both or neither (with `firstUserBecomesAdmin: false` and no `bootstrapAccount`) causes a startup error.
 
