@@ -73,21 +73,37 @@ export function clearRateLimits() {
   rateLimitStore.clear();
 }
 
-function checkRateLimit(key, maxAttempts, windowMinutes) {
+function getOrCreateEntry(key, windowMs) {
   const now = Date.now();
-  const windowMs = windowMinutes * 60_000;
   let entry = rateLimitStore.get(key);
   if (!entry || now - entry.start > windowMs) {
     entry = { start: now, count: 0 };
     rateLimitStore.set(key, entry);
   }
-  entry.count++;
   if (rateLimitStore.size % 100 === 0) {
     for (const [k, e] of rateLimitStore) {
       if (now - e.start > windowMs) rateLimitStore.delete(k);
     }
   }
-  return entry.count <= maxAttempts;
+  return entry;
+}
+
+function checkRateLimit(key, maxAttempts, windowMinutes) {
+  const windowMs = windowMinutes * 60_000;
+  const entry = getOrCreateEntry(key, windowMs);
+  return entry.count < maxAttempts;
+}
+
+function recordRateLimit(key, windowMinutes) {
+  const windowMs = windowMinutes * 60_000;
+  const entry = getOrCreateEntry(key, windowMs);
+  entry.count++;
+}
+
+export function recordSignupSuccess(req) {
+  const cfg = getConfig().auth.rateLimit.signup;
+  const key = `signup:${req.ip}`;
+  recordRateLimit(key, cfg.windowMinutes);
 }
 
 export function rateLimitMiddleware(type) {
@@ -110,6 +126,9 @@ export function rateLimitMiddleware(type) {
             field: null,
           },
         });
+    }
+    if (type === "login") {
+      recordRateLimit(key, cfg.windowMinutes);
     }
     next();
   };

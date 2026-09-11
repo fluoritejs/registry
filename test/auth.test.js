@@ -39,6 +39,15 @@ describe("Auth", () => {
       const res = await signup(env.app, "notifuser", "password123");
       assert.ok(res.headers["x-unread-notifications"]);
     });
+
+    it("failed signups do not count toward rate limit", async () => {
+      for (let i = 0; i < 10; i++) {
+        await signup(env.app, "testuser", "password123");
+      }
+
+      const res = await signup(env.app, "newuser", "password123");
+      assert.strictEqual(res.status, 201);
+    });
   });
 
   describe("first user becomes admin", () => {

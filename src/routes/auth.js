@@ -12,6 +12,7 @@ import {
   rateLimitMiddleware,
   requireSession,
   userJson,
+  recordSignupSuccess,
 } from "../auth.js";
 import { getConfig, getDeployment } from "../config.js";
 import { isSafeSegment } from "../validate.js";
@@ -129,6 +130,7 @@ router.post("/signup", rateLimitMiddleware("signup"), (req, res) => {
 
   const createdUser = getStmt("getUserById").get(user.id);
   log.info(`User signed up: ${namespace} (type=${type})`);
+  recordSignupSuccess(req);
 
   const response = successResponse(res, createdUser, token, config);
   res.status(201).json(response);
