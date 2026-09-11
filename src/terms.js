@@ -3,6 +3,7 @@ import {
   mkdirSync,
   readFileSync,
   renameSync,
+  statSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -19,18 +20,36 @@ export function contentPath(termsDir, name, version) {
     : join(termsDir, `${name}.md`);
 }
 
+const manifestCache = new Map();
+
 export function loadManifest(termsDir) {
   const path = manifestPath(termsDir);
-  if (!existsSync(path)) return { tosVersion: "", privacyVersion: "" };
+  let mtime;
   try {
-    const raw = yaml.load(readFileSync(path, "utf8")) || {};
-    return {
-      tosVersion: String(raw.tosVersion || ""),
-      privacyVersion: String(raw.privacyVersion || ""),
-    };
+    if (existsSync(path)) mtime = statSync(path).mtimeMs;
   } catch {
-    return { tosVersion: "", privacyVersion: "" };
+    mtime = undefined;
   }
+  const cached = manifestCache.get(path);
+  if (cached && cached.mtime === mtime) {
+    return { ...cached.manifest };
+  }
+  let manifest;
+  if (mtime === undefined) {
+    manifest = { tosVersion: "", privacyVersion: "" };
+  } else {
+    try {
+      const raw = yaml.load(readFileSync(path, "utf8")) || {};
+      manifest = {
+        tosVersion: String(raw.tosVersion || ""),
+        privacyVersion: String(raw.privacyVersion || ""),
+      };
+    } catch {
+      manifest = { tosVersion: "", privacyVersion: "" };
+    }
+  }
+  manifestCache.set(path, { mtime, manifest });
+  return { ...manifest };
 }
 
 export function saveManifest(termsDir, manifest) {
@@ -54,11 +73,32 @@ export function writeContent(termsDir, name, content) {
   writeFileSync(contentPath(termsDir, name), content, "utf8");
 }
 
+function assertSafeVersion(version) {
+  const segments = String(version).split(/[\\/]/);
+  if (
+    typeof version !== "string" ||
+    version.length === 0 ||
+    segments.length > 1 ||
+    segments.some((s) => s === "." || s === "..")
+  ) {
+    throw new Error(`Invalid version: ${version}`);
+  }
+}
+
 export function publishPair(termsDir, name, content, label, version) {
+  assertSafeVersion(version);
   mkdirSync(termsDir, { recursive: true });
   const contentFile = contentPath(termsDir, name, version);
   const manifestFile = manifestPath(termsDir);
   const manifest = loadManifest(termsDir);
+  if (manifest[label] === version) {
+    const existing = readContent(termsDir, name, version);
+    if (existing !== content) {
+      throw new Error(
+        `Version ${version} is already published for ${label} with different content; publish a new version instead.`,
+      );
+    }
+  }
   manifest[label] = version;
   const cookie = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
   const contentTmp = `${contentFile}.${cookie}.tmp`;

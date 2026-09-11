@@ -75,13 +75,28 @@ router.post("/terms/accept", requireSession, (req, res) => {
 
 function handleAdminUpdate(res, name, label, req) {
   const version = req.query.version;
-  if (typeof version !== "string" || !version.trim()) {
+  const trimmed = typeof version === "string" ? version.trim() : "";
+  if (!trimmed) {
     return res
       .status(400)
       .json({
         error: {
           code: "VALIDATION_ERROR",
           message: "A version query parameter is required.",
+          field: "version",
+        },
+      });
+  }
+  if (
+    trimmed.split(/[\\/]/).length > 1 ||
+    trimmed.split(/[\\/]/).some((s) => s === "." || s === "..")
+  ) {
+    return res
+      .status(400)
+      .json({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid version string.",
           field: "version",
         },
       });
@@ -116,7 +131,7 @@ function handleAdminUpdate(res, name, label, req) {
   }
   const dir = termsDir();
   try {
-    publishPair(dir, name, content, label, version.trim());
+    publishPair(dir, name, content, label, trimmed);
   } catch (err) {
     log.error(`Failed to update ${label}: ${err.message}`);
     return res
@@ -129,10 +144,10 @@ function handleAdminUpdate(res, name, label, req) {
         },
       });
   }
-  log.info(`Updated ${label} to version ${version.trim()}`);
+  log.info(`Updated ${label} to version ${trimmed}`);
   res.json({
-    version: version.trim(),
-    path: contentPath(dir, name, version.trim()),
+    version: trimmed,
+    path: contentPath(dir, name, trimmed),
   });
 }
 
