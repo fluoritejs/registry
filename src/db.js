@@ -439,7 +439,18 @@ export function runTransaction(fn) {
 
 export function deleteUserCascade(id) {
   dbHandle.transaction(() => {
-    dbHandle.prepare("DELETE FROM versions WHERE owner_id = ?").run(id);
+    const versions = getStmt("listVersionsByUser").all(id);
+    for (const v of versions) {
+      try {
+        if (v.blob_path && existsSync(v.blob_path)) unlinkSync(v.blob_path);
+        getStmt("deleteVersion").run(v.id);
+      } catch (err) {
+        getStmt("markVersionDeletionPending").run(v.id);
+        log.warn(
+          `Failed to delete blob ${v.blob_path}, left pending for retry: ${err.message}`,
+        );
+      }
+    }
     dbHandle.prepare("DELETE FROM users WHERE id = ?").run(id);
   })();
 }
