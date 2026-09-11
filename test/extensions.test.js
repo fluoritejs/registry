@@ -786,10 +786,35 @@ describe("Stats", () => {
       },
     });
 
+    await request(
+      env.app,
+      "PATCH",
+      "/v0/extensions/@statsadmin/pkg-a/versions/1.0.0/yank",
+      {
+        body: JSON.stringify({ yanked: true }),
+        headers: {
+          ...authHeaders(owner1Token),
+          "Content-Type": "application/json",
+        },
+      },
+    );
+    await request(
+      env.app,
+      "PATCH",
+      "/v0/extensions/@statsadmin/pkg-a/versions/2.0.0/yank",
+      {
+        body: JSON.stringify({ yanked: true }),
+        headers: {
+          ...authHeaders(owner1Token),
+          "Content-Type": "application/json",
+        },
+      },
+    );
+
     const res = await request(env.app, "GET", "/v0/stats");
     assert.strictEqual(res.status, 200);
-    assert.strictEqual(res.body.published, 2);
-    assert.strictEqual(res.body.authors, 2);
+    assert.strictEqual(res.body.published, 1);
+    assert.strictEqual(res.body.authors, 1);
   });
 });
 
