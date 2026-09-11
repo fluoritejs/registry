@@ -2,27 +2,9 @@ import { Router } from "express";
 import { getStmt } from "../db.js";
 import { getConfig } from "../config.js";
 import { parseCursor, encodeCursor, parseLimit } from "../pagination.js";
+import { versionJson } from "../version-json.js";
 
 const router = Router();
-
-function versionJson(v) {
-  const meta = JSON.parse(v.meta_json || "{}");
-  return {
-    version: v.version,
-    status: v.status,
-    createdAt: v.created_at,
-    publishedAt: v.published_at,
-    yanked: !!v.yanked,
-    yankReason: v.yank_reason || null,
-    downloads: v.downloads,
-    id: meta.id,
-    name: meta.name,
-    license: meta.license,
-    description: meta.description,
-    namespace: v.namespace,
-    extensionId: v.package_id,
-  };
-}
 
 router.get("/", (req, res) => {
   if (!req.auth || req.auth.user.type !== "admin") {
@@ -65,7 +47,10 @@ router.get("/", (req, res) => {
   const nextCursor =
     versions.length > limit ? encodeCursor(offset + limit) : null;
 
-  res.json({ versions: sliced.map((v) => versionJson(v)), nextCursor });
+  res.json({
+    versions: sliced.map((v) => versionJson(v, { includeNamespace: true })),
+    nextCursor,
+  });
 });
 
 export default router;

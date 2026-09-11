@@ -25,6 +25,7 @@ import {
   parseLimit,
 } from "../pagination.js";
 import { fireWebhooks } from "../webhooks.js";
+import { versionJson } from "../version-json.js";
 import { log } from "../logger.js";
 
 const router = Router();
@@ -53,27 +54,6 @@ function aggregateExtensions(rows) {
       totalDownloads,
     };
   });
-}
-
-function versionJson(v) {
-  const meta = JSON.parse(v.meta_json || "{}");
-  return {
-    version: v.version,
-    status: v.status,
-    createdAt: v.created_at,
-    publishedAt: v.published_at,
-    yanked: !!v.yanked,
-    yankReason: v.yank_reason || null,
-    downloads: v.downloads,
-    ...(meta.id
-      ? {
-          id: meta.id,
-          name: meta.name,
-          license: meta.license,
-          description: meta.description,
-        }
-      : {}),
-  };
 }
 
 function parseNamespace(ns) {
