@@ -106,6 +106,12 @@ export async function migrate(db) {
       );
     `);
     await tx.unsafe(`
+      CREATE INDEX IF NOT EXISTS notifications_user_id ON notifications(user_id);
+    `);
+    await tx.unsafe(`
+      CREATE INDEX IF NOT EXISTS auth_tokens_user_id ON auth_tokens(user_id);
+    `);
+    await tx.unsafe(`
       CREATE TABLE IF NOT EXISTS webhooks (
         id TEXT PRIMARY KEY,
         url TEXT NOT NULL,
