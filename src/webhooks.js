@@ -306,7 +306,7 @@ export async function deliverWithRetry(wh, body, event, cfg = {}) {
         deadline,
       );
       if (status >= 200 && status < 300) {
-        log.debug(`Webhook delivered to ${wh.url} (${event})`);
+        log.debug(`Webhook delivered to ${wh.id} (${event})`);
         return;
       }
       log.warn(
