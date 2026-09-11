@@ -361,6 +361,7 @@ router.post(
     const publishedAt = trusted ? nowIso() : null;
 
     let versionId;
+    let blobOwned = false;
     try {
       runTransaction(() => {
         getStmt("createVersion").run(
@@ -382,6 +383,7 @@ router.post(
 
       writeFileSync(stagingPath, source, "utf8");
       renameSync(stagingPath, finalPath);
+      blobOwned = true;
 
       runTransaction(() => {
         getStmt("finalizeVersion").run(
@@ -391,6 +393,7 @@ router.post(
           versionId,
         );
       });
+      blobOwned = false;
 
       const version = getStmt("getVersion").get(
         namespace,
@@ -410,15 +413,24 @@ router.post(
 
       res.status(201).json(versionJson(version));
     } catch (err) {
-      try {
-        if (existsSync(finalPath)) unlinkSync(finalPath);
-      } catch {
-        /* ignore */
+      if (blobOwned) {
+        try {
+          if (existsSync(finalPath)) unlinkSync(finalPath);
+        } catch {
+          /* ignore */
+        }
       }
       try {
         if (existsSync(stagingPath)) unlinkSync(stagingPath);
       } catch {
         /* ignore */
+      }
+      if (versionId !== undefined) {
+        try {
+          getStmt("deleteVersion").run(versionId);
+        } catch {
+          /* ignore */
+        }
       }
       log.error(`Publish failed: ${err.message}`);
       res

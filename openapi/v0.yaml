@@ -607,7 +607,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
         "403":
-          $ref: "#/components/responses/Forbidden"
+          oneOf:
+            - $ref: "#/components/responses/Forbidden"
+            - $ref: "#/components/responses/TermsAcceptanceRequired"
         "409":
           $ref: "#/components/responses/Error"
 
@@ -657,7 +659,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
         "403":
-          $ref: "#/components/responses/Forbidden"
+          oneOf:
+            - $ref: "#/components/responses/Forbidden"
+            - $ref: "#/components/responses/TermsAcceptanceRequired"
         "404":
           $ref: "#/components/responses/NotFound"
     delete:
@@ -670,7 +674,9 @@ paths:
         "204":
           description: Deleted.
         "403":
-          $ref: "#/components/responses/Forbidden"
+          oneOf:
+            - $ref: "#/components/responses/Forbidden"
+            - $ref: "#/components/responses/TermsAcceptanceRequired"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -700,7 +706,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
         "403":
-          $ref: "#/components/responses/Forbidden"
+          oneOf:
+            - $ref: "#/components/responses/Forbidden"
+            - $ref: "#/components/responses/TermsAcceptanceRequired"
 
   /users/{namespace}/trust:
     patch:
@@ -727,7 +735,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
         "403":
-          $ref: "#/components/responses/Forbidden"
+          oneOf:
+            - $ref: "#/components/responses/Forbidden"
+            - $ref: "#/components/responses/TermsAcceptanceRequired"
 
   /extensions:
     get:
@@ -785,6 +795,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Extension"
+        "403":
+          $ref: "#/components/responses/TermsAcceptanceRequired"
         "404":
           $ref: "#/components/responses/NotFound"
     delete:
@@ -798,7 +810,9 @@ paths:
         "204":
           description: Deleted.
         "403":
-          $ref: "#/components/responses/Forbidden"
+          oneOf:
+            - $ref: "#/components/responses/Forbidden"
+            - $ref: "#/components/responses/TermsAcceptanceRequired"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -828,11 +842,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/VersionMetadata"
         "403":
-          description: Another version is already pending review for this owner, or the token's scope doesn't permit publishing.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
+          oneOf:
+            - description: Another version is already pending review for this owner, or the token's scope doesn't permit publishing.
+              content:
+                application/json:
+                  schema:
+                    $ref: "#/components/schemas/Error"
+            - $ref: "#/components/responses/TermsAcceptanceRequired"
         "409":
           description: This exact version already exists.
           content:
@@ -898,7 +914,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/VersionMetadata"
         "403":
-          $ref: "#/components/responses/Forbidden"
+          oneOf:
+            - $ref: "#/components/responses/Forbidden"
+            - $ref: "#/components/responses/TermsAcceptanceRequired"
         "404":
           $ref: "#/components/responses/NotFound"
     delete:
@@ -913,7 +931,9 @@ paths:
         "204":
           description: Deleted.
         "403":
-          $ref: "#/components/responses/Forbidden"
+          oneOf:
+            - $ref: "#/components/responses/Forbidden"
+            - $ref: "#/components/responses/TermsAcceptanceRequired"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -949,7 +969,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/VersionMetadata"
         "403":
-          $ref: "#/components/responses/Forbidden"
+          oneOf:
+            - $ref: "#/components/responses/Forbidden"
+            - $ref: "#/components/responses/TermsAcceptanceRequired"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -992,7 +1014,9 @@ paths:
                   nextCursor:
                     type: [string, "null"]
         "403":
-          $ref: "#/components/responses/Forbidden"
+          oneOf:
+            - $ref: "#/components/responses/Forbidden"
+            - $ref: "#/components/responses/TermsAcceptanceRequired"
 
   /stats:
     get:
