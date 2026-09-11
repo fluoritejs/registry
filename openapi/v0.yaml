@@ -102,6 +102,16 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
+    ForbiddenOrTermsAcceptanceRequired:
+      description: >-
+        Authenticated, but either not permitted to perform this action
+        (FORBIDDEN) or the session user has not accepted the current Terms of
+        Service and Privacy Policy versions (TERMS_ACCEPTANCE_REQUIRED; call
+        POST /terms/accept with the current versions).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
 
   schemas:
     Error:
@@ -607,9 +617,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
         "403":
-          oneOf:
-            - $ref: "#/components/responses/Forbidden"
-            - $ref: "#/components/responses/TermsAcceptanceRequired"
+          $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
         "409":
           $ref: "#/components/responses/Error"
 
@@ -659,9 +667,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
         "403":
-          oneOf:
-            - $ref: "#/components/responses/Forbidden"
-            - $ref: "#/components/responses/TermsAcceptanceRequired"
+          $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
         "404":
           $ref: "#/components/responses/NotFound"
     delete:
@@ -674,9 +680,7 @@ paths:
         "204":
           description: Deleted.
         "403":
-          oneOf:
-            - $ref: "#/components/responses/Forbidden"
-            - $ref: "#/components/responses/TermsAcceptanceRequired"
+          $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -706,9 +710,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
         "403":
-          oneOf:
-            - $ref: "#/components/responses/Forbidden"
-            - $ref: "#/components/responses/TermsAcceptanceRequired"
+          $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
 
   /users/{namespace}/trust:
     patch:
@@ -735,9 +737,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
         "403":
-          oneOf:
-            - $ref: "#/components/responses/Forbidden"
-            - $ref: "#/components/responses/TermsAcceptanceRequired"
+          $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
 
   /extensions:
     get:
@@ -810,9 +810,7 @@ paths:
         "204":
           description: Deleted.
         "403":
-          oneOf:
-            - $ref: "#/components/responses/Forbidden"
-            - $ref: "#/components/responses/TermsAcceptanceRequired"
+          $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -824,7 +822,9 @@ paths:
         Publish a new version. The manifest (id, name, version, license,
         description) is extracted from the extension source itself — there
         is no separate metadata body. Accepts session tokens or automation
-        tokens scoped to "publish".
+        tokens scoped to "publish". 403 may mean another version is pending
+        review, the token's scope doesn't permit publishing, or the current
+        terms are not accepted.
       parameters:
         - $ref: "#/components/parameters/namespaceParam"
         - $ref: "#/components/parameters/extensionIdParam"
@@ -842,13 +842,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/VersionMetadata"
         "403":
-          oneOf:
-            - description: Another version is already pending review for this owner, or the token's scope doesn't permit publishing.
-              content:
-                application/json:
-                  schema:
-                    $ref: "#/components/schemas/Error"
-            - $ref: "#/components/responses/TermsAcceptanceRequired"
+          $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
         "409":
           description: This exact version already exists.
           content:
@@ -914,9 +908,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/VersionMetadata"
         "403":
-          oneOf:
-            - $ref: "#/components/responses/Forbidden"
-            - $ref: "#/components/responses/TermsAcceptanceRequired"
+          $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
         "404":
           $ref: "#/components/responses/NotFound"
     delete:
@@ -931,9 +923,7 @@ paths:
         "204":
           description: Deleted.
         "403":
-          oneOf:
-            - $ref: "#/components/responses/Forbidden"
-            - $ref: "#/components/responses/TermsAcceptanceRequired"
+          $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -969,9 +959,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/VersionMetadata"
         "403":
-          oneOf:
-            - $ref: "#/components/responses/Forbidden"
-            - $ref: "#/components/responses/TermsAcceptanceRequired"
+          $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -1014,9 +1002,7 @@ paths:
                   nextCursor:
                     type: [string, "null"]
         "403":
-          oneOf:
-            - $ref: "#/components/responses/Forbidden"
-            - $ref: "#/components/responses/TermsAcceptanceRequired"
+          $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
 
   /stats:
     get:
