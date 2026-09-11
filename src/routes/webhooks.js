@@ -120,6 +120,7 @@ router.post("/", (req, res) => {
 
   const id = crypto.randomUUID();
   const encryptedSecret = encryptSecret(secret);
+  const createdAt = nowIso();
 
   getStmt("createWebhook").run(
     id,
@@ -127,14 +128,12 @@ router.post("/", (req, res) => {
     JSON.stringify(events),
     encryptedSecret,
     1,
-    nowIso(),
+    createdAt,
   );
 
   log.info(`Webhook created: ${id} -> ${url}`);
 
-  res
-    .status(201)
-    .json({ id, url, events, enabled: true, createdAt: nowIso(), secret });
+  res.status(201).json({ id, url, events, enabled: true, createdAt, secret });
 });
 
 router.patch("/:id", (req, res) => {
