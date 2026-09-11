@@ -11,6 +11,7 @@ import {
   successResponse,
   rateLimitMiddleware,
   requireSession,
+  userJson,
 } from "../auth.js";
 import { getConfig, getDeployment } from "../config.js";
 import { isSafeSegment } from "../validate.js";
@@ -35,6 +36,10 @@ const sessionAuth = [
   },
   requireSession,
 ];
+
+router.get("/me", sessionAuth, (req, res) => {
+  res.json(userJson(req.auth.user));
+});
 
 router.post("/signup", rateLimitMiddleware("signup"), (req, res) => {
   const { namespace, password, displayName } = req.body;

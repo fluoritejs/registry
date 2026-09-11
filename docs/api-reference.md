@@ -79,6 +79,23 @@ Invalidates the current session token. **Requires auth.**
 
 ---
 
+### GET /v0/auth/me
+
+Show the current authenticated user. **Requires auth.**
+
+**Response 200:**
+
+```json
+{
+  "namespace": "myname",
+  "displayName": "My Name",
+  "type": "admin",
+  "trusted": true
+}
+```
+
+---
+
 ### GET /v0/auth/sessions
 
 List active (non-expired) session tokens. **Requires auth.**

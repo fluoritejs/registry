@@ -135,6 +135,38 @@ describe("Auth", () => {
     });
   });
 
+  describe("me", () => {
+    let env, token;
+    before(async () => {
+      env = createTestEnv();
+      const res = await signup(env.app, "meuser", "password123");
+      token = res.body.token;
+    });
+    after(() => env.cleanup());
+
+    it("returns the current user", async () => {
+      const res = await request(env.app, "GET", "/v0/auth/me", {
+        headers: authHeaders(token),
+      });
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.body.namespace, "meuser");
+      assert.strictEqual(res.body.type, "admin");
+      assert.strictEqual(res.body.trusted, true);
+    });
+
+    it("rejects unauthenticated request", async () => {
+      const res = await request(env.app, "GET", "/v0/auth/me");
+      assert.strictEqual(res.status, 401);
+    });
+
+    it("rejects expired token", async () => {
+      const res = await request(env.app, "GET", "/v0/auth/me", {
+        headers: authHeaders("expired"),
+      });
+      assert.strictEqual(res.status, 401);
+    });
+  });
+
   describe("sessions", () => {
     let env, token;
     before(async () => {

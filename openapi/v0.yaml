@@ -310,6 +310,21 @@ components:
           type: integer
 
 paths:
+  /auth/me:
+    get:
+      tags: [Userspace]
+      operationId: getMe
+      summary: Show the current authenticated user.
+      responses:
+        "200":
+          description: Current user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /auth/signup:
     post:
       tags: [Open]
