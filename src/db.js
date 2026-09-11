@@ -241,8 +241,7 @@ export function prepare(db) {
   s(
     "resolveLatestVersion",
     `SELECT v.*, u.namespace FROM versions v JOIN users u ON v.owner_id = u.id
-    WHERE u.namespace = ? AND v.package_id = ? AND v.status = 'published' AND v.yanked = 0
-    ORDER BY v.id DESC LIMIT 1`,
+    WHERE u.namespace = ? AND v.package_id = ? AND v.status = 'published' AND v.yanked = 0`,
   );
   s(
     "updateVersionStatus",
@@ -271,7 +270,7 @@ export function prepare(db) {
   );
   s(
     "highestPublishedVersion",
-    `SELECT version FROM versions WHERE owner_id = ? AND package_id = ? AND status = 'published' ORDER BY id DESC LIMIT 1`,
+    `SELECT version FROM versions WHERE owner_id = ? AND package_id = ? AND status = 'published' AND yanked = 0`,
   );
   s(
     "listVersionsByOwner",
@@ -301,60 +300,30 @@ export function prepare(db) {
   // Extension summaries
   s(
     "listExtensions",
-    `SELECT u.namespace, v.package_id as id,
-    json_extract(v.meta_json, '$.name') as name,
-    json_extract(v.meta_json, '$.description') as description,
-    json_extract(v.meta_json, '$.license') as license,
-    v.version as latestVersion,
-    v.published_at as publishedAt,
-    COALESCE(SUM(v2.downloads), 0) as totalDownloads
-    FROM versions v
+    `SELECT v.*, u.namespace FROM versions v
     JOIN users u ON v.owner_id = u.id
-    LEFT JOIN versions v2 ON v2.owner_id = u.id AND v2.package_id = v.package_id AND v2.status = 'published'
     WHERE v.status = 'published' AND v.yanked = 0
-    AND v.id = (SELECT MAX(v3.id) FROM versions v3 WHERE v3.owner_id = u.id AND v3.package_id = v.package_id AND v3.status = 'published' AND v3.yanked = 0)
-    GROUP BY u.namespace, v.package_id
-    ORDER BY v.id DESC LIMIT ? OFFSET ?`,
+    ORDER BY v.id DESC`,
   );
 
   s(
     "listExtensionsByOwner",
-    `SELECT u.namespace, v.package_id as id,
-    json_extract(v.meta_json, '$.name') as name,
-    json_extract(v.meta_json, '$.description') as description,
-    json_extract(v.meta_json, '$.license') as license,
-    v.version as latestVersion,
-    v.published_at as publishedAt,
-    COALESCE(SUM(v2.downloads), 0) as totalDownloads
-    FROM versions v
+    `SELECT v.*, u.namespace FROM versions v
     JOIN users u ON v.owner_id = u.id
-    LEFT JOIN versions v2 ON v2.owner_id = u.id AND v2.package_id = v.package_id AND v2.status = 'published'
-    WHERE v.status = 'published' AND v.yanked = 0
-    AND v.id = (SELECT MAX(v3.id) FROM versions v3 WHERE v3.owner_id = u.id AND v3.package_id = v.package_id AND v3.status = 'published' AND v3.yanked = 0)
-    GROUP BY u.namespace, v.package_id
-    ORDER BY v.id DESC LIMIT ? OFFSET ?`,
+    WHERE v.status = 'published' AND v.yanked = 0 AND u.namespace = ?
+    ORDER BY v.id DESC`,
   );
 
   s(
     "searchExtensions",
-    `SELECT u.namespace, v.package_id as id,
-    json_extract(v.meta_json, '$.name') as name,
-    json_extract(v.meta_json, '$.description') as description,
-    json_extract(v.meta_json, '$.license') as license,
-    v.version as latestVersion,
-    v.published_at as publishedAt,
-    COALESCE(SUM(v2.downloads), 0) as totalDownloads
-    FROM versions v
+    `SELECT v.*, u.namespace FROM versions v
     JOIN users u ON v.owner_id = u.id
-    LEFT JOIN versions v2 ON v2.owner_id = u.id AND v2.package_id = v.package_id AND v2.status = 'published'
     WHERE v.status = 'published' AND v.yanked = 0
-    AND v.id = (SELECT MAX(v3.id) FROM versions v3 WHERE v3.owner_id = u.id AND v3.package_id = v.package_id AND v3.status = 'published' AND v3.yanked = 0)
     AND (u.namespace LIKE '%' || ? || '%'
       OR v.package_id LIKE '%' || ? || '%'
       OR json_extract(v.meta_json, '$.name') LIKE '%' || ? || '%'
       OR json_extract(v.meta_json, '$.description') LIKE '%' || ? || '%')
-    GROUP BY u.namespace, v.package_id
-    ORDER BY v.id DESC LIMIT ? OFFSET ?`,
+    ORDER BY v.id DESC`,
   );
 
   s(

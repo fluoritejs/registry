@@ -25,6 +25,32 @@ import { log } from "../logger.js";
 
 const router = Router();
 
+function aggregateExtensions(rows) {
+  const groups = new Map();
+  for (const row of rows) {
+    const key = `${row.namespace}\0${row.package_id}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  }
+  return [...groups.values()].map((versions) => {
+    const latest = versions.reduce((a, b) =>
+      semver.rcompare(a.version, b.version) <= 0 ? a : b,
+    );
+    const totalDownloads = versions.reduce((s, v) => s + v.downloads, 0);
+    const meta = JSON.parse(latest.meta_json || "{}");
+    return {
+      namespace: latest.namespace,
+      id: latest.package_id,
+      name: meta.name,
+      description: meta.description,
+      license: meta.license,
+      latestVersion: latest.version,
+      publishedAt: latest.published_at,
+      totalDownloads,
+    };
+  });
+}
+
 function versionJson(v) {
   const meta = JSON.parse(v.meta_json || "{}");
   return {
@@ -74,30 +100,19 @@ router.get("/", (req, res) => {
   const offset = parseCursor(req.query);
   const q = req.query.q;
 
-  let extensions;
+  let allRows;
   if (q) {
-    extensions = getStmt("searchExtensions").all(q, q, q, q, limit + 1, offset);
+    allRows = getStmt("searchExtensions").all(q, q, q, q);
   } else {
-    extensions = getStmt("listExtensions").all(limit + 1, offset);
+    allRows = getStmt("listExtensions").all();
   }
 
-  const sliced = extensions.slice(0, limit);
+  const extensions = aggregateExtensions(allRows);
+  const paged = extensions.slice(offset, offset + limit);
   const nextCursor =
-    extensions.length > limit ? encodeCursor(offset + limit) : null;
+    extensions.length > offset + limit ? encodeCursor(offset + limit) : null;
 
-  res.json({
-    extensions: sliced.map((e) => ({
-      namespace: e.namespace,
-      id: e.id,
-      name: e.name,
-      description: e.description,
-      license: e.license,
-      latestVersion: e.latestVersion,
-      publishedAt: e.publishedAt,
-      totalDownloads: e.totalDownloads,
-    })),
-    nextCursor,
-  });
+  res.json({ extensions: paged, nextCursor });
 });
 
 router.get("/:namespace/:id", (req, res) => {
@@ -286,7 +301,12 @@ router.post(
         });
     }
 
-    const published = getStmt("highestPublishedVersion").get(user.id, id);
+    const publishedVersions = getStmt("highestPublishedVersion").all(user.id, id);
+    const published = publishedVersions.length
+      ? publishedVersions.reduce((a, b) =>
+          semver.rcompare(a.version, b.version) <= 0 ? a : b,
+        )
+      : null;
     if (published && !semver.gt(manifest.version, published.version)) {
       return res
         .status(400)
@@ -401,7 +421,12 @@ router.get("/:namespace/:id/versions/:version", (req, res) => {
 
   let v;
   if (version === "latest") {
-    v = getStmt("resolveLatestVersion").get(namespace, id);
+    const candidates = getStmt("resolveLatestVersion").all(namespace, id);
+    v = candidates.length
+      ? candidates.reduce((a, b) =>
+          semver.rcompare(a.version, b.version) <= 0 ? a : b,
+        )
+      : null;
     if (!v) {
       return res
         .status(404)

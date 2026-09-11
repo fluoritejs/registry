@@ -176,6 +176,55 @@ describe("Extensions - trusted publish", () => {
     assert.ok(typeof jsRes.body === "string");
     assert.ok(jsRes.body.includes("Scratch.extensions.register"));
   });
+
+  it("latest version resolves by semver, not publish order", async () => {
+    const v1 = `var Fluorite = { manifest: { id: 'semver-pkg', name: 'Semver Test', version: '1.0.0', license: 'MIT', description: 'd' } };`;
+    const v2 = `var Fluorite = { manifest: { id: 'semver-pkg', name: 'Semver Test', version: '2.0.0', license: 'MIT', description: 'd' } };`;
+
+    const res1 = await request(
+      env.app,
+      "POST",
+      "/v0/extensions/@trustedowner/semver-pkg/versions",
+      {
+        body: v1,
+        headers: {
+          ...authHeaders(trustedToken),
+          "Content-Type": "application/javascript",
+        },
+      },
+    );
+    assert.strictEqual(res1.status, 201);
+
+    const res2 = await request(
+      env.app,
+      "POST",
+      "/v0/extensions/@trustedowner/semver-pkg/versions",
+      {
+        body: v2,
+        headers: {
+          ...authHeaders(trustedToken),
+          "Content-Type": "application/javascript",
+        },
+      },
+    );
+    assert.strictEqual(res2.status, 201);
+
+    const latestRes = await request(
+      env.app,
+      "GET",
+      "/v0/extensions/@trustedowner/semver-pkg/versions/latest",
+    );
+    assert.strictEqual(latestRes.status, 200);
+    assert.strictEqual(latestRes.body.version, "2.0.0");
+
+    const listRes = await request(env.app, "GET", "/v0/extensions");
+    assert.strictEqual(listRes.status, 200);
+    const ext = listRes.body.extensions.find(
+      (e) => e.id === "semver-pkg" && e.namespace === "trustedowner",
+    );
+    assert.ok(ext);
+    assert.strictEqual(ext.latestVersion, "2.0.0");
+  });
 });
 
 describe("Extensions - publish flow", () => {
