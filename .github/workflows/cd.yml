@@ -83,7 +83,10 @@ jobs:
                       elif node -e '
           const [cand, cur] = process.argv.slice(1);
           const parse = (v) => {
-            const [core, pre] = v.replace(/^v/, "").split("-");
+            const cleaned = v.replace(/^v/, "").split("+")[0];
+            const dash = cleaned.indexOf("-");
+            const core = dash === -1 ? cleaned : cleaned.slice(0, dash);
+            const pre = dash === -1 ? null : cleaned.slice(dash + 1);
             return {
               nums: core.split(".").map((n) => parseInt(n, 10)),
               pre: pre ? pre.split(".") : null,
