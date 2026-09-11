@@ -182,13 +182,18 @@ kill -SIGHUP <pid>
 
 ### Database
 
-The schema and metadata live in PostgreSQL. Use `pg_dump` to back it up:
+The schema and metadata live in PostgreSQL. Use `pg_dump` to back it up. Point it at the database without embedding a password in the connection string — put the login in `~/.pgpass` instead:
 
 ```bash
-pg_dump "postgres://fluorite:fluorite@localhost:5432/fluorite" > fluorite-dump.sql
+# ~/.pgpass (chmod 600); format: host:port:database:user:password
+localhost:5432:fluorite:fluorite:your-password
 ```
 
-`pg_dump` produces a consistent snapshot from a running server, so you don't need to stop the registry. Restore with `psql`.
+```bash
+pg_dump -h localhost -U fluorite -d fluorite > fluorite-dump.sql
+```
+
+A `PGSERVICE` entry in `pg_service.conf` works the same way (then `pg_dump "service=fluorite"`). `pg_dump` produces a consistent snapshot from a running server, so you don't need to stop the registry. Restore with `psql`.
 
 ### Blob Files
 
