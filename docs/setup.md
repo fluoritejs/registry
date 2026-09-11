@@ -57,8 +57,17 @@ admin:
   firstUserBecomesAdmin: false
   bootstrapAccount:
     namespace: admin
-    passwordFromEnv: FLUORITE_BOOTSTRAP_PASSWORD # generates a random password, e.g. FLUORITE_BOOTSTRAP_PASSWORD=$(openssl rand -base64 24)
+    passwordFromEnv: FLUORITE_BOOTSTRAP_PASSWORD
 ```
+
+Generate a password and export it before starting the server:
+
+```bash
+export FLUORITE_BOOTSTRAP_PASSWORD="$(openssl rand -base64 24)"
+npm start
+```
+
+Alternatively, keep the password in a secret file and use `passwordFile` instead of `passwordFromEnv`.
 
 **Option B — bootstrapAccount**
 
