@@ -1,6 +1,7 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert";
 import { createTestEnv, request, signup, authHeaders } from "./helpers.js";
+import { getStmt } from "../src/db.js";
 
 describe("Users", () => {
   let env, adminToken;
@@ -84,6 +85,47 @@ describe("Users", () => {
 
     const check = await request(env.app, "GET", "/v0/users/target");
     assert.strictEqual(check.body.trusted, true);
+  });
+
+  it("rolls back password and tokens when credential revocation fails", async () => {
+    const signupRes = await signup(env.app, "txuser", "oldpass123");
+    const txToken = signupRes.body.token;
+    const before = getStmt("getUserByNamespace").get("txuser");
+
+    const stmt = getStmt("deleteAllAuthTokens");
+    const originalRun = stmt.run;
+    stmt.run = () => {
+      throw new Error("injected token deletion failure");
+    };
+    let res;
+    try {
+      res = await request(env.app, "PATCH", "/v0/users/txuser", {
+        body: JSON.stringify({ password: "newpass456" }),
+        headers: {
+          ...authHeaders(txToken),
+          "Content-Type": "application/json",
+        },
+      });
+    } finally {
+      stmt.run = originalRun;
+    }
+    assert.strictEqual(res.status, 500);
+
+    const after = getStmt("getUserByNamespace").get("txuser");
+    assert.strictEqual(
+      after.password_hash,
+      before.password_hash,
+      "password must roll back when token deletion fails",
+    );
+
+    const sessionCheck = await request(env.app, "GET", "/v0/auth/sessions", {
+      headers: authHeaders(txToken),
+    });
+    assert.strictEqual(
+      sessionCheck.status,
+      200,
+      "session token must survive a rolled-back password change",
+    );
   });
 
   it("user can delete own account", async () => {

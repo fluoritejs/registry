@@ -68,7 +68,7 @@ router.post("/", (req, res) => {
         },
       });
   }
-  const { url, events } = req.body;
+  const { url, events } = req.body ?? {};
   if (typeof url !== "string" || url.length === 0) {
     return res
       .status(400)
@@ -162,7 +162,7 @@ router.patch("/:id", (req, res) => {
       });
   }
 
-  const { url, events, enabled } = req.body;
+  const { url, events, enabled } = req.body ?? {};
   if (url !== undefined) {
     if (typeof url !== "string" || !isSafeWebhookUrl(url)) {
       return res
@@ -189,6 +189,17 @@ router.patch("/:id", (req, res) => {
           },
         });
     }
+  }
+  if (enabled !== undefined && typeof enabled !== "boolean") {
+    return res
+      .status(400)
+      .json({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "enabled must be a boolean.",
+          field: "enabled",
+        },
+      });
   }
   const newUrl = url ?? existing.url;
   const newEvents = events ? JSON.stringify(events) : existing.events;

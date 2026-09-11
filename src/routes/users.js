@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { existsSync, unlinkSync } from "node:fs";
-import { getStmt, deleteUserCascade } from "../db.js";
+import { getStmt, deleteUserCascade, runTransaction } from "../db.js";
 import { hashPassword, userJson } from "../auth.js";
 import { getConfig } from "../config.js";
 import { parseCursor, encodeCursor, parseLimit } from "../pagination.js";
@@ -33,7 +33,7 @@ router.post("/", (req, res) => {
         },
       });
   }
-  const { namespace, password, displayName } = req.body;
+  const { namespace, password, displayName } = req.body ?? {};
   if (
     !namespace ||
     typeof namespace !== "string" ||
@@ -146,7 +146,7 @@ router.patch("/:namespace", (req, res) => {
       });
   }
 
-  const { displayName, password } = req.body;
+  const { displayName, password } = req.body ?? {};
   let updatedUser = target;
 
   if (password !== undefined) {
@@ -162,9 +162,11 @@ router.patch("/:namespace", (req, res) => {
         });
     }
     const hash = hashPassword(password);
-    getStmt("updateUserPassword").run(hash, target.namespace);
-    getStmt("deleteAllAuthTokens").run(target.id);
-    getStmt("deleteAllAutomationTokens").run(target.id);
+    runTransaction(() => {
+      getStmt("updateUserPassword").run(hash, target.namespace);
+      getStmt("deleteAllAuthTokens").run(target.id);
+      getStmt("deleteAllAutomationTokens").run(target.id);
+    });
     log.info(
       `Password changed for ${target.namespace} — all sessions and tokens revoked`,
     );
@@ -260,7 +262,7 @@ router.patch("/:namespace/role", (req, res) => {
         error: { code: "NOT_FOUND", message: "User not found.", field: null },
       });
   }
-  const { type } = req.body;
+  const { type } = req.body ?? {};
   if (!type || !["admin", "normal"].includes(type)) {
     return res
       .status(400)
@@ -296,7 +298,7 @@ router.patch("/:namespace/trust", (req, res) => {
         error: { code: "NOT_FOUND", message: "User not found.", field: null },
       });
   }
-  const { trusted } = req.body;
+  const { trusted } = req.body ?? {};
   if (typeof trusted !== "boolean") {
     return res
       .status(400)
