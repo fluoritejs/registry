@@ -39,16 +39,14 @@ router.get("/", (req, res) => {
 
   let notifications;
   if (status === "read") {
-    notifications = getStmt("listNotificationsByStatus").all(
+    notifications = getStmt("listNotificationsRead").all(
       req.auth.user.id,
-      "not null",
       limit + 1,
       offset,
     );
   } else if (status === "unread") {
-    notifications = getStmt("listNotificationsByStatus").all(
+    notifications = getStmt("listNotificationsUnread").all(
       req.auth.user.id,
-      null,
       limit + 1,
       offset,
     );

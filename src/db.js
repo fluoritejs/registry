@@ -367,8 +367,12 @@ export function prepare(db) {
     "SELECT * FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT ? OFFSET ?",
   );
   s(
-    "listNotificationsByStatus",
-    "SELECT * FROM notifications WHERE user_id = ? AND read_at IS ? ORDER BY id DESC LIMIT ? OFFSET ?",
+    "listNotificationsRead",
+    "SELECT * FROM notifications WHERE user_id = ? AND read_at IS NOT NULL ORDER BY id DESC LIMIT ? OFFSET ?",
+  );
+  s(
+    "listNotificationsUnread",
+    "SELECT * FROM notifications WHERE user_id = ? AND read_at IS NULL ORDER BY id DESC LIMIT ? OFFSET ?",
   );
   s(
     "markNotificationRead",
