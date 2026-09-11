@@ -6,9 +6,8 @@ import { log } from "../logger.js";
 import {
   loadManifest,
   readContent,
-  writeContent,
-  saveManifest,
   contentPath,
+  publishPair,
 } from "../terms.js";
 
 const router = Router();
@@ -87,8 +86,23 @@ function handleAdminUpdate(res, name, label, req) {
         },
       });
   }
-  const content =
-    typeof req.body === "string" ? req.body : req.body?.toString("utf8");
+  const body = req.body;
+  let content;
+  if (typeof body === "string") {
+    content = body;
+  } else if (Buffer.isBuffer(body)) {
+    content = body.toString("utf8");
+  } else {
+    return res
+      .status(400)
+      .json({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Markdown content must be sent as text.",
+          field: "content",
+        },
+      });
+  }
   if (!content) {
     return res
       .status(400)
@@ -101,10 +115,20 @@ function handleAdminUpdate(res, name, label, req) {
       });
   }
   const dir = termsDir();
-  writeContent(dir, name, content);
-  const manifest = loadManifest(dir);
-  manifest[label] = version.trim();
-  saveManifest(dir, manifest);
+  try {
+    publishPair(dir, name, content, label, version.trim());
+  } catch (err) {
+    log.error(`Failed to update ${label}: ${err.message}`);
+    return res
+      .status(500)
+      .json({
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "Failed to update document.",
+          field: null,
+        },
+      });
+  }
   log.info(`Updated ${label} to version ${version.trim()}`);
   res.json({ version: version.trim(), path: contentPath(dir, name) });
 }

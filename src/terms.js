@@ -1,4 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import yaml from "js-yaml";
 
@@ -39,4 +46,33 @@ export function readContent(termsDir, name) {
 export function writeContent(termsDir, name, content) {
   mkdirSync(termsDir, { recursive: true });
   writeFileSync(contentPath(termsDir, name), content, "utf8");
+}
+
+export function publishPair(termsDir, name, content, label, version) {
+  mkdirSync(termsDir, { recursive: true });
+  const contentFile = contentPath(termsDir, name);
+  const manifestFile = manifestPath(termsDir);
+  const manifest = loadManifest(termsDir);
+  manifest[label] = version;
+  const cookie = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+  const contentTmp = `${contentFile}.${cookie}.tmp`;
+  const manifestTmp = `${manifestFile}.${cookie}.tmp`;
+  try {
+    writeFileSync(contentTmp, content, "utf8");
+    writeFileSync(manifestTmp, yaml.dump(manifest), "utf8");
+    renameSync(contentTmp, contentFile);
+    renameSync(manifestTmp, manifestFile);
+  } catch (err) {
+    try {
+      if (existsSync(contentTmp)) unlinkSync(contentTmp);
+    } catch {
+      /* ignore */
+    }
+    try {
+      if (existsSync(manifestTmp)) unlinkSync(manifestTmp);
+    } catch {
+      /* ignore */
+    }
+    throw err;
+  }
 }
