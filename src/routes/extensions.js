@@ -4,19 +4,26 @@ import * as semver from "semver";
 import {
   writeFileSync,
   renameSync,
-  readFileSync,
+  createReadStream,
   mkdirSync,
   unlinkSync,
   existsSync,
 } from "node:fs";
 import { dirname } from "node:path";
-import { getStmt, blobPath, stagingBlobPath, runTransaction } from "../db.js";
+import {
+  getStmt,
+  blobPath,
+  stagingBlobPath,
+  runTransaction,
+  listVersionsByExtensionBatched,
+} from "../db.js";
 import { extractManifest } from "../manifest.js";
 import {
   nowIso,
   authMiddleware,
   scopeMiddleware,
   adminMiddleware,
+  requireSession,
 } from "../auth.js";
 import { getConfig, getDeployment } from "../config.js";
 import {
@@ -47,21 +54,24 @@ function aggregateExtensions(rows) {
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(row);
   }
-  return [...groups.values()].map((versions) => {
-    const latest = highestVersion(versions);
-    const totalDownloads = versions.reduce((s, v) => s + v.downloads, 0);
-    const meta = JSON.parse(latest.meta_json || "{}");
-    return {
-      namespace: latest.namespace,
-      id: latest.package_id,
-      name: meta.name,
-      description: meta.description,
-      license: meta.license,
-      latestVersion: latest.version,
-      publishedAt: latest.published_at,
-      totalDownloads,
-    };
-  });
+  return [...groups.values()]
+    .map((versions) => {
+      const latest = highestVersion(versions);
+      if (!latest) return null;
+      const totalDownloads = versions.reduce((s, v) => s + v.downloads, 0);
+      const meta = JSON.parse(latest.meta_json || "{}");
+      return {
+        namespace: latest.namespace,
+        id: latest.package_id,
+        name: meta.name,
+        description: meta.description,
+        license: meta.license,
+        latestVersion: latest.version,
+        publishedAt: latest.published_at,
+        totalDownloads,
+      };
+    })
+    .filter((e) => e !== null);
 }
 
 function parseNamespace(ns) {
@@ -117,14 +127,9 @@ router.get("/", async (req, res) => {
   const hasMore = identities.length > limit;
   const page = hasMore ? identities.slice(0, limit) : identities;
 
-  const allRows = [];
-  for (const { namespace, package_id } of page) {
-    const rows = await getStmt("listVersionsByExtension").all(
-      namespace,
-      package_id,
-    );
-    allRows.push(...rows);
-  }
+  const allRows = await listVersionsByExtensionBatched(
+    page.map(({ namespace, package_id }) => ({ namespace, package_id })),
+  );
 
   const extensions = aggregateExtensions(allRows);
   const nextCursor = hasMore
@@ -201,7 +206,7 @@ router.get("/:namespace/:id", async (req, res) => {
 router.delete(
   "/:namespace/:id",
   authMiddleware,
-  scopeMiddleware("publish"),
+  requireSession,
   async (req, res) => {
     const namespace = parseNamespace(req.params.namespace);
     const id = req.params.id;
@@ -573,11 +578,10 @@ router.get("/:namespace/:id/versions/:version", async (req, res) => {
         });
     }
     await getStmt("incrementDownloads").run(v.id);
-    const code = readFileSync(v.blob_path, "utf8");
     res.set("Content-Type", "application/javascript");
     res.set("X-Content-Type-Options", "nosniff");
     res.set("Content-Disposition", "attachment");
-    res.send(code);
+    createReadStream(v.blob_path).pipe(res);
   } else {
     res.json(versionJson(v));
   }
@@ -673,7 +677,7 @@ router.patch(
 router.delete(
   "/:namespace/:id/versions/:version",
   authMiddleware,
-  scopeMiddleware("publish"),
+  requireSession,
   async (req, res) => {
     const namespace = parseNamespace(req.params.namespace);
     const { id, version } = req.params;
@@ -731,7 +735,7 @@ router.delete(
 router.patch(
   "/:namespace/:id/versions/:version/yank",
   authMiddleware,
-  scopeMiddleware("publish"),
+  requireSession,
   async (req, res) => {
     const namespace = parseNamespace(req.params.namespace);
     const { id, version } = req.params;
@@ -784,6 +788,17 @@ router.patch(
     }
 
     const wasYanked = v.yanked;
+    if (v.status !== "published") {
+      return res
+        .status(400)
+        .json({
+          error: {
+            code: "INVALID_STATUS",
+            message: "Only published versions can be yanked or restored.",
+            field: null,
+          },
+        });
+    }
     await getStmt("updateVersionYank").run(
       yanked ? 1 : 0,
       yanked ? reason || null : null,

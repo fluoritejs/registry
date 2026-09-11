@@ -496,6 +496,21 @@ export function getStmt(name) {
   return stmts[name];
 }
 
+export async function listVersionsByExtensionBatched(pairs) {
+  if (!pairs.length) return [];
+  const clauses = pairs.map(
+    (_, i) => `(u.namespace = $${i * 2 + 1} AND v.package_id = $${i * 2 + 2})`,
+  );
+  const args = pairs.flatMap((p) => [p.namespace, p.package_id]);
+  return base.unsafe(
+    `SELECT v.*, u.namespace FROM versions v
+    JOIN users u ON v.owner_id = u.id
+    WHERE (${clauses.join(" OR ")}) AND v.status = 'published' AND v.yanked = 0
+    ORDER BY v.id DESC`,
+    args,
+  );
+}
+
 export async function runTransaction(fn) {
   await base.begin(async (tx) => {
     await txStore.run({ tx }, async () => {
