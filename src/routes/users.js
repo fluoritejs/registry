@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { getStmt, deleteUserCascade, runTransaction } from "../db.js";
-import { hashPassword, userJson } from "../auth.js";
+import { hashPassword, userJson, requireSession } from "../auth.js";
 import { getConfig } from "../config.js";
 import { parseCursor, encodeCursor, parseLimit } from "../pagination.js";
 import { isSafeSegment } from "../validate.js";
@@ -261,7 +261,7 @@ router.delete("/:namespace", async (req, res) => {
   res.status(204).end();
 });
 
-router.patch("/:namespace/role", async (req, res) => {
+router.patch("/:namespace/role", requireSession, async (req, res) => {
   if (!req.auth || req.auth.user.type !== "admin") {
     return res
       .status(403)
