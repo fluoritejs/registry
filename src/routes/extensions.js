@@ -30,6 +30,14 @@ import { log } from "../logger.js";
 
 const router = Router();
 
+function highestVersion(rows) {
+  const valid = (rows || []).filter((r) => semver.valid(r.version));
+  if (valid.length === 0) return null;
+  return valid.reduce((a, b) =>
+    semver.rcompare(a.version, b.version) <= 0 ? a : b,
+  );
+}
+
 function aggregateExtensions(rows) {
   const groups = new Map();
   for (const row of rows) {
@@ -38,9 +46,7 @@ function aggregateExtensions(rows) {
     groups.get(key).push(row);
   }
   return [...groups.values()].map((versions) => {
-    const latest = versions.reduce((a, b) =>
-      semver.rcompare(a.version, b.version) <= 0 ? a : b,
-    );
+    const latest = highestVersion(versions);
     const totalDownloads = versions.reduce((s, v) => s + v.downloads, 0);
     const meta = JSON.parse(latest.meta_json || "{}");
     return {
@@ -318,11 +324,7 @@ router.post(
       user.id,
       id,
     );
-    const published = publishedVersions.length
-      ? publishedVersions.reduce((a, b) =>
-          semver.rcompare(a.version, b.version) <= 0 ? a : b,
-        )
-      : null;
+    const published = highestVersion(publishedVersions);
     if (published && !semver.gt(manifest.version, published.version)) {
       return res
         .status(400)
@@ -472,11 +474,7 @@ router.get("/:namespace/:id/versions/:version", (req, res) => {
   let v;
   if (version === "latest") {
     const candidates = getStmt("resolveLatestVersion").all(namespace, id);
-    v = candidates.length
-      ? candidates.reduce((a, b) =>
-          semver.rcompare(a.version, b.version) <= 0 ? a : b,
-        )
-      : null;
+    v = highestVersion(candidates);
     if (!v) {
       return res
         .status(404)
