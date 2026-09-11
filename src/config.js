@@ -42,18 +42,27 @@ const CONFIG_DEFAULTS = {
   logging: { level: "info" },
 };
 
-function deepMerge(base, overrides) {
+function deepMerge(base, overrides, path = "") {
   const result = { ...base };
   for (const key of Object.keys(overrides)) {
+    const childPath = path ? `${path}.${key}` : key;
+    const overrideIsNull = overrides[key] === null;
+    const baseIsMapping =
+      typeof base[key] === "object" &&
+      base[key] !== null &&
+      !Array.isArray(base[key]);
+    if (overrideIsNull && baseIsMapping) {
+      throw new Error(
+        `Configuration error: ${childPath} must be an object, not null.`,
+      );
+    }
     if (
       overrides[key] !== null &&
       typeof overrides[key] === "object" &&
       !Array.isArray(overrides[key]) &&
-      typeof base[key] === "object" &&
-      base[key] !== null &&
-      !Array.isArray(base[key])
+      baseIsMapping
     ) {
-      result[key] = deepMerge(base[key], overrides[key]);
+      result[key] = deepMerge(base[key], overrides[key], childPath);
     } else {
       result[key] = overrides[key];
     }
