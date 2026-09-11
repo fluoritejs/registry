@@ -75,6 +75,61 @@ export function isSafeWebhookUrl(rawUrl) {
   return true;
 }
 
+function ipv6ToBytes(host) {
+  const h = host.toLowerCase();
+  const parts = h.split("::");
+  if (parts.length > 2) return null;
+  const headGroups = parts[0] ? parts[0].split(":") : [];
+  const tailGroups = parts.length === 2 && parts[1] ? parts[1].split(":") : [];
+
+  const absorbDottedTail = (groups) => {
+    if (!groups.length) return groups;
+    const lastIndex = groups.length - 1;
+    if (!groups[lastIndex].includes(".")) return groups;
+    const octets = groups[lastIndex].split(".").map(Number);
+    if (
+      octets.length !== 4 ||
+      octets.some((n) => !Number.isInteger(n) || n < 0 || n > 255)
+    ) {
+      return null;
+    }
+    groups[lastIndex] = ((octets[0] << 8) | octets[1]).toString(16);
+    groups.push(((octets[2] << 8) | octets[3]).toString(16));
+    return groups;
+  };
+
+  const head = absorbDottedTail(headGroups);
+  const tail = absorbDottedTail(tailGroups);
+  if (head === null || tail === null) return null;
+  const hextets = head.map((g) =>
+    /^[0-9a-f]{1,4}$/.test(g) ? parseInt(g, 16) : null,
+  );
+  if (hextets.some((v) => v === null)) return null;
+  if (parts.length === 2) {
+    const pad = 8 - head.length - tail.length;
+    if (pad < 0) return null;
+    for (let i = 0; i < pad; i++) hextets.push(0);
+    for (const g of tail) {
+      if (!/^[0-9a-f]{1,4}$/.test(g)) return null;
+      hextets.push(parseInt(g, 16));
+    }
+  } else if (head.length !== 8) {
+    return null;
+  }
+  if (hextets.length !== 8) return null;
+  const bytes = [];
+  for (const value of hextets) bytes.push((value >> 8) & 0xff, value & 0xff);
+  return bytes;
+}
+
+function ipv4MappedToIpv4(bytes) {
+  for (let i = 0; i < 10; i++) {
+    if (bytes[i] !== 0) return null;
+  }
+  if (bytes[10] !== 0xff || bytes[11] !== 0xff) return null;
+  return `${bytes[12]}.${bytes[13]}.${bytes[14]}.${bytes[15]}`;
+}
+
 export function isRestrictedIp(host) {
   if (net.isIPv4(host)) {
     const [a, b, c] = host.split(".").map(Number);
@@ -92,8 +147,11 @@ export function isRestrictedIp(host) {
   }
   if (net.isIPv6(host)) {
     const h = host.toLowerCase();
-    const v4 = h.startsWith("::ffff:") ? h.slice(7) : null;
-    if (v4 && net.isIPv4(v4)) return isRestrictedIp(v4);
+    const bytes = ipv6ToBytes(host);
+    if (bytes) {
+      const mapped = ipv4MappedToIpv4(bytes);
+      if (mapped) return isRestrictedIp(mapped);
+    }
     if (h === "::" || h === "::1") return true;
     if (
       h.startsWith("fe8") ||
@@ -135,8 +193,13 @@ async function resolveSafeHost(hostname) {
   return { address: chosen.address, family: chosen.family };
 }
 
-function sendHttps(url, body, headers, cfg, pinned) {
+function sendHttps(url, body, headers, cfg, pinned, deadline) {
   return new Promise((resolve, reject) => {
+    const timeLeft = deadline - Date.now();
+    if (timeLeft <= 0) {
+      reject(new Error("Webhook delivery timed out"));
+      return;
+    }
     const req = https.request(
       {
         hostname: url.hostname,
@@ -150,7 +213,7 @@ function sendHttps(url, body, headers, cfg, pinned) {
       },
       (res) => resolve(res),
     );
-    req.setTimeout(cfg.deliveryTimeoutMs, () => {
+    req.setTimeout(timeLeft, () => {
       req.destroy(new Error("Webhook delivery timed out"));
     });
     req.on("error", reject);
@@ -158,10 +221,21 @@ function sendHttps(url, body, headers, cfg, pinned) {
   });
 }
 
-function drainResponse(res) {
-  return new Promise((resolve) => {
-    res.resume();
+function drainResponse(res, deadline, maxResponseBodySize) {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    res.on("data", (chunk) => {
+      size += chunk.length;
+      if (size > maxResponseBodySize) {
+        res.destroy();
+        reject(new Error("Webhook response exceeded the maximum body size"));
+      } else if (deadline <= Date.now()) {
+        res.destroy();
+        reject(new Error("Webhook delivery timed out"));
+      }
+    });
     res.on("end", resolve);
+    res.on("error", (err) => reject(err));
   });
 }
 
@@ -169,9 +243,19 @@ function isRedirect(statusCode) {
   return [301, 302, 303, 307, 308].includes(statusCode);
 }
 
-async function deliverOnce(urlString, body, headers, cfg, redirectCount) {
+async function deliverOnce(
+  urlString,
+  body,
+  headers,
+  cfg,
+  redirectCount,
+  deadline,
+) {
   if (redirectCount > MAX_REDIRECTS) {
     throw permanentError("Webhook redirect limit exceeded.");
+  }
+  if (deadline <= Date.now()) {
+    throw new Error("Webhook delivery timed out");
   }
   const url = new URL(urlString);
   if (url.protocol !== "https:") {
@@ -185,11 +269,11 @@ async function deliverOnce(urlString, body, headers, cfg, redirectCount) {
       `Refusing webhook destination that resolves to a restricted address: ${urlString}`,
     );
   }
-  const res = await sendHttps(url, body, headers, cfg, pinned);
-  await drainResponse(res);
+  const res = await sendHttps(url, body, headers, cfg, pinned, deadline);
+  await drainResponse(res, deadline, cfg.maxResponseBodySize);
   if (isRedirect(res.statusCode) && res.headers.location) {
     const next = new URL(res.headers.location, url).toString();
-    return deliverOnce(next, body, headers, cfg, redirectCount + 1);
+    return deliverOnce(next, body, headers, cfg, redirectCount + 1, deadline);
   }
   return res.statusCode;
 }
@@ -207,11 +291,20 @@ export async function deliverWithRetry(wh, body, event, cfg = {}) {
     maxRetries: cfg.maxRetries ?? 0,
     deliveryTimeoutMs: cfg.deliveryTimeoutMs ?? 5000,
     retryBackoffMs: cfg.retryBackoffMs ?? 0,
+    maxResponseBodySize: cfg.maxResponseBodySize ?? 1048576,
   };
 
   for (let attempt = 0; attempt <= deliveryCfg.maxRetries; attempt++) {
+    const deadline = Date.now() + deliveryCfg.deliveryTimeoutMs;
     try {
-      const status = await deliverOnce(wh.url, body, headers, deliveryCfg, 0);
+      const status = await deliverOnce(
+        wh.url,
+        body,
+        headers,
+        deliveryCfg,
+        0,
+        deadline,
+      );
       if (status >= 200 && status < 300) {
         log.debug(`Webhook delivered to ${wh.url} (${event})`);
         return;

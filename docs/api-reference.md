@@ -655,7 +655,7 @@ function verifySignature(body, secret, signature) {
 }
 ```
 
-Failed deliveries are retried up to `webhooks.maxRetries` times with linear backoff (`retryBackoffMs * attempt`). Delivery timeout is `webhooks.deliveryTimeoutMs`.
+Failed deliveries are retried up to `webhooks.maxRetries` times with linear backoff (`retryBackoffMs * attempt`). Delivery timeout is `webhooks.deliveryTimeoutMs`, applied as one absolute deadline across the initial request and any redirects within an attempt. Responses larger than `webhooks.maxResponseBodySize` bytes are aborted and the delivery retried.
 
 ---
 
@@ -792,7 +792,7 @@ Content-Type: text/markdown
 **Response 200:**
 
 ```json
-{ "version": "2026-09-01", "path": "/data/terms/tos.md" }
+{ "version": "2026-09-01", "path": "/data/terms/tos.2026-09-01.md" }
 ```
 
 **Response 400:** `VALIDATION_ERROR` when `version` is missing or the body is empty.

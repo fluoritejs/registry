@@ -89,6 +89,7 @@ webhooks:
   deliveryTimeoutMs: 5000
   maxRetries: 3
   retryBackoffMs: 2000
+  maxResponseBodySize: 1048576
 
 terms:
   dir: "./terms"
@@ -150,19 +151,20 @@ Package ID pattern: alphanumeric, 1-64 chars, dots/hyphens/underscores allowed b
 
 ### webhooks
 
-| Key                 | Default | Description                                                                                                                                                                                                      |
-| ------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `encryptionKey`     | `""`    | 32-byte hex key (AES-256-GCM) used to encrypt webhook secrets at rest. Generate with `openssl rand -hex 32`. Webhook creation is refused until this is configured; a non-empty malformed value fails at startup. |
-| `deliveryTimeoutMs` | `5000`  | HTTP timeout per webhook delivery attempt.                                                                                                                                                                       |
-| `maxRetries`        | `3`     | Retries after a failed delivery (0 = no retries).                                                                                                                                                                |
-| `retryBackoffMs`    | `2000`  | Base delay between retries, multiplied by attempt number (linear backoff).                                                                                                                                       |
+| Key                   | Default   | Description                                                                                                                                                                                                      |
+| --------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `encryptionKey`       | `""`      | 32-byte hex key (AES-256-GCM) used to encrypt webhook secrets at rest. Generate with `openssl rand -hex 32`. Webhook creation is refused until this is configured; a non-empty malformed value fails at startup. |
+| `deliveryTimeoutMs`   | `5000`    | HTTP timeout per webhook delivery attempt. The deadline is absolute across the initial request and any redirects within a single attempt.                                                                        |
+| `maxRetries`          | `3`       | Retries after a failed delivery (0 = no retries).                                                                                                                                                                |
+| `retryBackoffMs`      | `2000`    | Base delay between retries, multiplied by attempt number (linear backoff).                                                                                                                                       |
+| `maxResponseBodySize` | `1048576` | Maximum response body bytes drained from a delivery (1 MiB). Larger responses abort the attempt and are retried.                                                                                                 |
 
 ### terms
 
-| Key       | Default   | Description                                                                                                    |
-| --------- | --------- | -------------------------------------------------------------------------------------------------------------- |
-| `dir`     | `./terms` | Directory with `manifest.yaml` (versions) plus `tos.md` and `privacy.md` (markdown content). Created on write. |
-| `enforce` | `false`   | When `true`, authenticated actions require the user to have accepted the current terms and privacy versions.   |
+| Key       | Default   | Description                                                                                                                                                                             |
+| --------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dir`     | `./terms` | Directory with `manifest.yaml` (versions) plus versioned markdown files (`tos.<version>.md`, `privacy.<version>.md`); legacy `tos.md` / `privacy.md` remain readable. Created on write. |
+| `enforce` | `false`   | When `true`, authenticated actions require the user to have accepted the current terms and privacy versions.                                                                            |
 
 When `enforce` is `true`, users receive `403 TERMS_ACCEPTANCE_REQUIRED` on authenticated endpoints until they call `POST /v0/terms/accept` with the current versions. Automation tokens are exempt. To force re-acceptance, bump the version for a document via `PATCH /v0/admin/terms` or `PATCH /v0/admin/privacy` (which also updates the on-disk content).
 
