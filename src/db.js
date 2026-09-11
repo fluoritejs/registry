@@ -321,35 +321,7 @@ export function prepare(db) {
   );
   s("listVersionsByUser", "SELECT * FROM versions WHERE owner_id = ?");
 
-  // Extension summaries
-  s(
-    "listExtensions",
-    `SELECT v.*, u.namespace FROM versions v
-    JOIN users u ON v.owner_id = u.id
-    WHERE v.status = 'published' AND v.yanked = 0
-    ORDER BY v.id DESC`,
-  );
-
-  s(
-    "listExtensionsByOwner",
-    `SELECT v.*, u.namespace FROM versions v
-    JOIN users u ON v.owner_id = u.id
-    WHERE v.status = 'published' AND v.yanked = 0 AND u.namespace = ?
-    ORDER BY v.id DESC`,
-  );
-
-  s(
-    "searchExtensions",
-    `SELECT v.*, u.namespace FROM versions v
-    JOIN users u ON v.owner_id = u.id
-    WHERE v.status = 'published' AND v.yanked = 0
-    AND (u.namespace LIKE '%' || ? || '%'
-      OR v.package_id LIKE '%' || ? || '%'
-      OR json_extract(v.meta_json, '$.name') LIKE '%' || ? || '%'
-      OR json_extract(v.meta_json, '$.description') LIKE '%' || ? || '%')
-    ORDER BY v.id DESC`,
-  );
-
+  // Extension identities
   s(
     "listExtensionIdentities",
     `SELECT u.namespace, v.package_id, MAX(v.id) AS sort_key
