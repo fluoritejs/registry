@@ -49,7 +49,7 @@ Create a user directly (no signup required):
 curl -X POST \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"namespace": "collaborator", "password": "securepass123"}' \
+  -d '{"namespace": "collaborator", "password": "$GENERATED_PASSWORD"}' \
   http://localhost:3000/v0/users
 ```
 

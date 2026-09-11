@@ -8,7 +8,7 @@ Most of these things can be done with Fluorite Compiler. Note that you will need
 # Create an account
 curl -X POST \
   -H "Content-Type: application/json" \
-  -d '{"namespace": "myname", "password": "securepass123"}' \
+  -d '{"namespace": "myname", "password": "$GENERATED_PASSWORD"}' \
   http://localhost:3000/v0/auth/signup
 ```
 
