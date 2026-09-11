@@ -1,7 +1,7 @@
 import { Router } from "express";
 import crypto from "node:crypto";
 import { getStmt } from "../db.js";
-import { nowIso } from "../auth.js";
+import { nowIso, adminMiddleware } from "../auth.js";
 import {
   isSafeWebhookUrl,
   encryptSecret,
@@ -10,6 +10,8 @@ import {
 import { log } from "../logger.js";
 
 const router = Router();
+
+router.use(adminMiddleware);
 
 const WEBHOOK_EVENTS = [
   "version.published",
@@ -41,33 +43,11 @@ function webhookJson(wh) {
 }
 
 router.get("/", async (req, res) => {
-  if (!req.auth || req.auth.user.type !== "admin") {
-    return res
-      .status(403)
-      .json({
-        error: {
-          code: "FORBIDDEN",
-          message: "Admin access required.",
-          field: null,
-        },
-      });
-  }
   const webhooks = await getStmt("listWebhooks").all();
   res.json(webhooks.map(webhookJson));
 });
 
 router.post("/", async (req, res) => {
-  if (!req.auth || req.auth.user.type !== "admin") {
-    return res
-      .status(403)
-      .json({
-        error: {
-          code: "FORBIDDEN",
-          message: "Admin access required.",
-          field: null,
-        },
-      });
-  }
   const { url, events } = req.body ?? {};
   if (typeof url !== "string" || url.length === 0) {
     return res
@@ -137,17 +117,6 @@ router.post("/", async (req, res) => {
 });
 
 router.patch("/:id", async (req, res) => {
-  if (!req.auth || req.auth.user.type !== "admin") {
-    return res
-      .status(403)
-      .json({
-        error: {
-          code: "FORBIDDEN",
-          message: "Admin access required.",
-          field: null,
-        },
-      });
-  }
   const existing = await getStmt("getWebhook").get(req.params.id);
   if (!existing) {
     return res
@@ -217,17 +186,6 @@ router.patch("/:id", async (req, res) => {
 });
 
 router.delete("/:id", async (req, res) => {
-  if (!req.auth || req.auth.user.type !== "admin") {
-    return res
-      .status(403)
-      .json({
-        error: {
-          code: "FORBIDDEN",
-          message: "Admin access required.",
-          field: null,
-        },
-      });
-  }
   const existing = await getStmt("getWebhook").get(req.params.id);
   if (!existing) {
     return res
