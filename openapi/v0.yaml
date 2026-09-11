@@ -1097,8 +1097,15 @@ paths:
                   format: uri
                 events:
                   type: array
+                  minItems: 1
                   items:
                     type: string
+                    enum:
+                      - version.published
+                      - version.pending
+                      - version.approved
+                      - version.rejected
+                      - version.yanked
                 enabled:
                   type: boolean
       responses:
