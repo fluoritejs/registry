@@ -49,6 +49,10 @@ router.post("/terms/accept", requireSession, (req, res) => {
   const { tosVersion, privacyVersion } = req.body || {};
   const current = loadManifest(termsDir());
   if (
+    typeof tosVersion !== "string" ||
+    typeof privacyVersion !== "string" ||
+    !current.tosVersion ||
+    !current.privacyVersion ||
     tosVersion !== current.tosVersion ||
     privacyVersion !== current.privacyVersion
   ) {
