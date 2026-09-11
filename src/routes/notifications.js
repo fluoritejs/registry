@@ -62,10 +62,12 @@ router.get("/", (req, res) => {
   const nextCursor =
     notifications.length > limit ? encodeCursor(offset + limit) : null;
 
-  const unread = getStmt("countUnreadNotifications").get(
-    req.auth.user.id,
-  ).count;
-  res.set("X-Unread-Notifications", String(unread));
+  if (config.notifications?.includeUnreadCountHeader !== false) {
+    const unread = getStmt("countUnreadNotifications").get(
+      req.auth.user.id,
+    ).count;
+    res.set("X-Unread-Notifications", String(unread));
+  }
 
   res.json({ notifications: sliced.map(notificationJson), nextCursor });
 });
