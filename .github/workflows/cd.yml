@@ -58,10 +58,7 @@ jobs:
           images: ghcr.io/fluoritejs/registry
           tags: |
             type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=latest
-      - name: Build and push
+      - name: Build and push immutable version tag
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
@@ -71,3 +68,69 @@ jobs:
           platforms: linux/amd64, linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Compare candidate version with currently promoted latest
+        id: promote
+        env:
+          IMAGE: ghcr.io/fluoritejs/registry
+          CANDIDATE: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          PROMOTE="true"
+          if docker pull "$IMAGE:latest" >/dev/null 2>&1; then
+            CURRENT="$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.version"}}' "$IMAGE:latest" || true)"
+            if [ -z "$CURRENT" ]; then
+              echo "Could not read the version of the promoted latest tag; promoting latest"
+                      elif node -e '
+          const [cand, cur] = process.argv.slice(1);
+          const parse = (v) => {
+            const [core, pre] = v.replace(/^v/, "").split("-");
+            return {
+              nums: core.split(".").map((n) => parseInt(n, 10)),
+              pre: pre ? pre.split(".") : null,
+            };
+          };
+          const cmp = (a, b) => {
+            for (let i = 0; i < 3; i++) {
+              if (a.nums[i] !== b.nums[i]) return a.nums[i] - b.nums[i];
+            }
+            if (a.pre === null && b.pre === null) return 0;
+            if (a.pre === null) return 1;
+            if (b.pre === null) return -1;
+            for (let i = 0; i < Math.max(a.pre.length, b.pre.length); i++) {
+              const x = a.pre[i];
+              const y = b.pre[i];
+              if (x === undefined) return -1;
+              if (y === undefined) return 1;
+              const xn = /^\d+$/.test(x);
+              const yn = /^\d+$/.test(y);
+              if (xn && yn) {
+                const d = parseInt(x, 10) - parseInt(y, 10);
+                if (d !== 0) return d;
+              } else if (xn) return -1;
+              else if (yn) return 1;
+              else {
+                const d = x < y ? -1 : x > y ? 1 : 0;
+                if (d !== 0) return d;
+              }
+            }
+            return 0;
+          };
+          process.exit(cmp(parse(cand), parse(cur)) >= 0 ? 0 : 1);
+          ' "$CANDIDATE" "$CURRENT"; then
+              echo "Candidate ${CANDIDATE} is not lower than the promoted latest ${CURRENT}; promoting latest"
+            else
+              echo "Candidate ${CANDIDATE} is lower than the promoted latest ${CURRENT}; skipping latest promotion"
+              PROMOTE="false"
+            fi
+          else
+            echo "No existing latest tag found; promoting latest"
+          fi
+          echo "promote=${PROMOTE}" >> "$GITHUB_OUTPUT"
+      - name: Promote latest
+        if: steps.promote.outputs.promote == 'true'
+        env:
+          IMAGE: ghcr.io/fluoritejs/registry
+          CANDIDATE: ${{ steps.meta.outputs.version }}
+        run: |
+          docker buildx imagetools create "$IMAGE:$CANDIDATE" --tag "$IMAGE:latest"
+          echo "Promoted $IMAGE:$CANDIDATE to $IMAGE:latest"
