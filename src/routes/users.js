@@ -215,7 +215,9 @@ router.delete("/:namespace", (req, res) => {
   const versions = getStmt("listVersionsByUser").all(target.id);
   for (const v of versions) {
     try {
+      getStmt("markVersionDeletionPending").run(v.id);
       if (v.blob_path && existsSync(v.blob_path)) unlinkSync(v.blob_path);
+      getStmt("deleteVersion").run(v.id);
     } catch (err) {
       log.error(
         `Failed to delete blob ${v.blob_path} for user ${target.namespace}: ${err.message}`,
@@ -230,9 +232,6 @@ router.delete("/:namespace", (req, res) => {
           },
         });
     }
-  }
-  for (const v of versions) {
-    getStmt("deleteVersion").run(v.id);
   }
   getStmt("deleteAllAuthTokens").run(target.id);
   getStmt("deleteAllAutomationTokens").run(target.id);
