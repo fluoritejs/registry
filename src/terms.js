@@ -9,6 +9,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import yaml from "js-yaml";
+import { getConfig } from "./config.js";
 
 function manifestPath(termsDir) {
   return join(termsDir, "manifest.yaml");
@@ -27,7 +28,8 @@ export function loadManifest(termsDir) {
   let mtime;
   try {
     if (existsSync(path)) mtime = statSync(path).mtimeMs;
-  } catch {
+  } catch (err) {
+    if (getConfig()?.terms?.enforce === true) throw err;
     mtime = undefined;
   }
   const cached = manifestCache.get(path);
@@ -44,8 +46,14 @@ export function loadManifest(termsDir) {
         tosVersion: String(raw.tosVersion || ""),
         privacyVersion: String(raw.privacyVersion || ""),
       };
-    } catch {
-      manifest = { tosVersion: "", privacyVersion: "" };
+    } catch (err) {
+      if (err?.code === "ENOENT") {
+        manifest = { tosVersion: "", privacyVersion: "" };
+      } else if (getConfig()?.terms?.enforce === true) {
+        throw err;
+      } else {
+        manifest = { tosVersion: "", privacyVersion: "" };
+      }
     }
   }
   manifestCache.set(path, { mtime, manifest });
