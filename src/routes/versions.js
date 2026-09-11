@@ -2,7 +2,11 @@ import { Router } from "express";
 import { adminMiddleware } from "../auth.js";
 import { getStmt } from "../db.js";
 import { getConfig } from "../config.js";
-import { parseKeysetCursor, parseLimit } from "../pagination.js";
+import {
+  parseKeysetCursor,
+  encodeKeysetCursor,
+  parseLimit,
+} from "../pagination.js";
 import { versionJson } from "../version-json.js";
 
 const router = Router();
@@ -29,12 +33,14 @@ router.get("/", adminMiddleware, async (req, res) => {
 
   const versions = await getStmt("listVersionsWorklist").all(
     status,
-    limit + 1,
     after,
+    limit + 1,
   );
   const sliced = versions.slice(0, limit);
   const nextCursor =
-    versions.length > limit ? sliced[sliced.length - 1].id : null;
+    versions.length > limit
+      ? encodeKeysetCursor(sliced[sliced.length - 1].id)
+      : null;
 
   res.json({
     versions: sliced.map((v) => versionJson(v, { includeNamespace: true })),
