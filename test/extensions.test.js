@@ -483,7 +483,7 @@ describe("Extensions - publish flow", () => {
     assert.ok(typeof res.body === "string");
   });
 
-  it("yanked published version can still be fetched directly (not 404)", async () => {
+  it("yanked published version is hidden from non-owner callers", async () => {
     const source = `var Fluorite = { manifest: { id: 'yanked-fetch', name: 'Yanked Fetch', version: '1.0.0', license: 'MIT', description: 'd' } };`;
     const pubRes = await request(
       env.app,
@@ -521,17 +521,38 @@ describe("Extensions - publish flow", () => {
       "/v0/extensions/@regularuser/yanked-fetch/versions/1.0.0",
       { headers: { Accept: "application/javascript" } },
     );
-    assert.strictEqual(jsRes.status, 200);
-    assert.ok(typeof jsRes.body === "string");
-    assert.ok(jsRes.body.includes("yanked-fetch"));
+    assert.strictEqual(jsRes.status, 404);
 
     const metaRes = await request(
       env.app,
       "GET",
       "/v0/extensions/@regularuser/yanked-fetch/versions/1.0.0",
     );
-    assert.strictEqual(metaRes.status, 200);
-    assert.strictEqual(metaRes.body.yanked, true);
+    assert.strictEqual(metaRes.status, 404);
+
+    const ownerJs = await request(
+      env.app,
+      "GET",
+      "/v0/extensions/@regularuser/yanked-fetch/versions/1.0.0",
+      {
+        headers: {
+          ...authHeaders(untrustedToken),
+          Accept: "application/javascript",
+        },
+      },
+    );
+    assert.strictEqual(ownerJs.status, 200);
+    assert.ok(typeof ownerJs.body === "string");
+    assert.ok(ownerJs.body.includes("yanked-fetch"));
+
+    const ownerMeta = await request(
+      env.app,
+      "GET",
+      "/v0/extensions/@regularuser/yanked-fetch/versions/1.0.0",
+      { headers: authHeaders(untrustedToken) },
+    );
+    assert.strictEqual(ownerMeta.status, 200);
+    assert.strictEqual(ownerMeta.body.yanked, true);
   });
 
   it("yank and un-yank", async () => {

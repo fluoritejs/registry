@@ -524,7 +524,7 @@ router.get("/:namespace/:id/versions/:version", async (req, res) => {
 
   const isOwner = req.auth && req.auth.user.id === user.id;
   const isAdmin = req.auth && req.auth.user.type === "admin";
-  if (!isOwner && !isAdmin && v.status !== "published") {
+  if (!isOwner && !isAdmin && (v.status !== "published" || v.yanked)) {
     return res
       .status(404)
       .json({
