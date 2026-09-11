@@ -1,8 +1,8 @@
 services:
   registry:
-    image: ghcr.io/fluoritejs/registry:latest
+    image: ghcr.io/fluoritejs/registry:v0.1.0
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - registry-data:/app/data
       - ./deployment.yaml:/app/deployment.yaml:ro
