@@ -858,9 +858,11 @@ paths:
         Get a version. Content negotiation determines the response:
         application/json for metadata, application/javascript for the
         compiled code. Fetching the compiled code increments its download
-        counter; fetching metadata does not. Yanked versions are still
+        counter; fetching metadata does not.         Yanked versions are still
         servable (existing consumers keep working) but are flagged.
-      security: []
+      security:
+        - {}
+        - bearerAuth: []
       parameters:
         - $ref: "#/components/parameters/namespaceParam"
         - $ref: "#/components/parameters/extensionIdParam"
@@ -974,6 +976,7 @@ paths:
       parameters:
         - name: status
           in: query
+          required: true
           schema:
             type: string
             enum: [staging, pending, published, rejected]
@@ -1033,7 +1036,7 @@ paths:
                 items:
                   $ref: "#/components/schemas/Webhook"
         "403":
-          $ref: "#/components/responses/TermsAcceptanceRequired"
+          $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
     post:
       tags: [Adminspace]
       operationId: createWebhook
@@ -1068,7 +1071,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Webhook"
         "403":
-          $ref: "#/components/responses/TermsAcceptanceRequired"
+          $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
         "500":
           $ref: "#/components/responses/Error"
 
@@ -1106,7 +1109,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Webhook"
         "403":
-          $ref: "#/components/responses/TermsAcceptanceRequired"
+          $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
         "404":
           $ref: "#/components/responses/NotFound"
     delete:
@@ -1123,10 +1126,9 @@ paths:
         "204":
           description: Deleted.
         "403":
-          $ref: "#/components/responses/TermsAcceptanceRequired"
+          $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
         "404":
           $ref: "#/components/responses/NotFound"
-
   /notifications:
     get:
       tags: [Userspace]
