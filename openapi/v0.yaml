@@ -798,7 +798,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Extension"
         "403":
-          $ref: "#/components/responses/TermsAcceptanceRequired"
+          $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
         "404":
           $ref: "#/components/responses/NotFound"
     delete:
