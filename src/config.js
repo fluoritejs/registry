@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import yaml from "js-yaml";
+import { log } from "./logger.js";
 
 const DEPLOYMENT_DEFAULTS = {
   server: {
@@ -69,16 +70,25 @@ function parseDuration(s) {
   const match = String(s).match(/^(\d+)(s|m|h|d)$/);
   if (!match) throw new Error(`Invalid duration: ${s}`);
   const n = parseInt(match[1], 10);
+  let ms;
   switch (match[2]) {
     case "s":
-      return n * 1000;
+      ms = n * 1000;
+      break;
     case "m":
-      return n * 60_000;
+      ms = n * 60_000;
+      break;
     case "h":
-      return n * 3_600_000;
+      ms = n * 3_600_000;
+      break;
     case "d":
-      return n * 86_400_000;
+      ms = n * 86_400_000;
+      break;
   }
+  if (!Number.isFinite(ms) || ms <= 0) {
+    throw new Error(`Invalid duration: ${s}`);
+  }
+  return ms;
 }
 
 function loadYaml(path) {
@@ -157,6 +167,16 @@ export function setDeployment(d) {
 
 export function reloadConfig() {
   const fresh = loadConfig();
+  if (currentConfig) {
+    const activeKey = currentConfig.webhooks?.encryptionKey;
+    const freshKey = fresh.webhooks?.encryptionKey;
+    if (activeKey && freshKey !== activeKey) {
+      log.warn(
+        "SIGHUP reload: webhooks.encryptionKey changed in config; ignoring to preserve active key until decrypt-and-re-encrypt rotation is implemented.",
+      );
+      fresh.webhooks.encryptionKey = activeKey;
+    }
+  }
   currentConfig = fresh;
   return fresh;
 }
