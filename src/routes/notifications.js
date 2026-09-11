@@ -6,6 +6,23 @@ import { nowIso } from "../auth.js";
 
 const router = Router();
 
+function requireAuth(req, res, next) {
+  if (!req.auth) {
+    return res
+      .status(401)
+      .json({
+        error: {
+          code: "UNAUTHORIZED",
+          message: "Authentication required.",
+          field: null,
+        },
+      });
+  }
+  next();
+}
+
+router.use(requireAuth);
+
 function notificationJson(n) {
   return {
     id: String(n.id),
@@ -18,18 +35,6 @@ function notificationJson(n) {
 }
 
 router.get("/", (req, res) => {
-  if (!req.auth) {
-    return res
-      .status(401)
-      .json({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Authentication required.",
-          field: null,
-        },
-      });
-  }
-
   const config = getConfig();
   const maxPageSize = config.listings.maxPageSize;
   const defaultSize = config.listings.defaultPageSize;
@@ -73,17 +78,6 @@ router.get("/", (req, res) => {
 });
 
 router.delete("/", (req, res) => {
-  if (!req.auth) {
-    return res
-      .status(401)
-      .json({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Authentication required.",
-          field: null,
-        },
-      });
-  }
   const status = req.query.status;
   if (status !== "read") {
     return res
@@ -101,17 +95,6 @@ router.delete("/", (req, res) => {
 });
 
 router.patch("/:id", (req, res) => {
-  if (!req.auth) {
-    return res
-      .status(401)
-      .json({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Authentication required.",
-          field: null,
-        },
-      });
-  }
   const n = getStmt("getNotification").get(Number(req.params.id));
   if (!n || n.user_id !== req.auth.user.id) {
     return res
@@ -129,17 +112,6 @@ router.patch("/:id", (req, res) => {
 });
 
 router.delete("/:id", (req, res) => {
-  if (!req.auth) {
-    return res
-      .status(401)
-      .json({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Authentication required.",
-          field: null,
-        },
-      });
-  }
   const n = getStmt("getNotification").get(Number(req.params.id));
   if (!n || n.user_id !== req.auth.user.id) {
     return res
