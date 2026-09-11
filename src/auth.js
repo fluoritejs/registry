@@ -42,10 +42,10 @@ export function expiryDate() {
   return new Date(Date.now() + ttlMs).toISOString();
 }
 
-function successResponse(res, user, token, config) {
+async function successResponse(res, user, token, config) {
   if (config.notifications?.includeUnreadCountHeader !== false) {
-    const unread = getStmt("countUnreadNotifications").get(user.id).count;
-    res.set("X-Unread-Notifications", String(unread));
+    const unread = await getStmt("countUnreadNotifications").get(user.id);
+    res.set("X-Unread-Notifications", String(unread.count));
   }
   return {
     user: {
@@ -142,7 +142,7 @@ export function rateLimitMiddleware(type) {
   };
 }
 
-export function authMiddleware(req, res, next) {
+export async function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
     return res
@@ -158,10 +158,10 @@ export function authMiddleware(req, res, next) {
   const token = authHeader.slice(7);
   const tokenHash = hashToken(token);
 
-  const sessionToken = getStmt("getAuthToken").get(tokenHash);
+  const sessionToken = await getStmt("getAuthToken").get(tokenHash);
   if (sessionToken) {
     if (new Date(sessionToken.expires_at) < new Date()) {
-      getStmt("deleteAuthToken").run(sessionToken.id);
+      await getStmt("deleteAuthToken").run(sessionToken.id);
       return res
         .status(401)
         .json({
@@ -172,7 +172,7 @@ export function authMiddleware(req, res, next) {
           },
         });
     }
-    const user = getStmt("getUserById").get(sessionToken.user_id);
+    const user = await getStmt("getUserById").get(sessionToken.user_id);
     if (!user) {
       return res
         .status(401)
@@ -188,9 +188,9 @@ export function authMiddleware(req, res, next) {
     return next();
   }
 
-  const autoToken = getStmt("getAutomationToken").get(tokenHash);
+  const autoToken = await getStmt("getAutomationToken").get(tokenHash);
   if (autoToken) {
-    const user = getStmt("getUserById").get(autoToken.user_id);
+    const user = await getStmt("getUserById").get(autoToken.user_id);
     if (!user) {
       return res
         .status(401)
@@ -203,7 +203,7 @@ export function authMiddleware(req, res, next) {
         });
     }
     const scopes = JSON.parse(autoToken.scopes);
-    getStmt("updateAutomationTokenLastUsed").run(nowIso(), autoToken.id);
+    await getStmt("updateAutomationTokenLastUsed").run(nowIso(), autoToken.id);
     req.auth = { user, tokenKind: "automation", scopes };
     return next();
   }

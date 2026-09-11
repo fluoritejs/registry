@@ -4,6 +4,7 @@
 
 - Node.js 22.13.0 through 22.x, or 24 and newer
 - A POSIX shell (Linux, macOS, WSL)
+- A running PostgreSQL server (tested against 17) and a database with credentials for it
 
 ## Install
 
@@ -13,16 +14,16 @@ cd registry
 npm install
 ```
 
-`npm install` compiles the `better-sqlite3` native addon. On Linux you need a C compiler and Python 3 available (the usual build-essential toolchain).
+Dependencies are pure JavaScript, so no compiler toolchain is needed.
 
 ## Directory Structure
 
 After install, create these files in the repo root:
 
-- `deployment.yaml` — server address, storage path, admin bootstrap
+- `deployment.yaml` — server address, storage path, database, admin bootstrap
 - `config.yaml` — auth settings, publishing rules, logging
 
-You can just copy them from `deployment.example.yaml` and `config.example.yaml` and edit them from there. Both are optional. Without them the server uses built-in defaults (port 3000, first user becomes admin, SQLite in `./data`).
+You can just copy them from `deployment.example.yaml` and `config.example.yaml` and edit them from there. Without them the server uses built-in defaults for the app code, but it still needs a reachable PostgreSQL database. Point it at one via `deployment.yaml` (`database.connectionString`) or the `FLUORITE_DATABASE_URL` environment variable. The default connection settings assume a local `fluorite` database owned by the `fluorite` user.
 
 ## First Run
 
@@ -34,7 +35,7 @@ npm start
 The server:
 
 1. Loads `deployment.yaml` and `config.yaml` (falls back to defaults for missing keys)
-2. Creates `data/registry.sqlite` and all tables if they don't exist
+2. Creates all tables if they don't exist
 3. Cleans up any leftover temp blob files from a previous crash
 4. Promotes any orphaned `staging` versions whose blobs are on disk to `pending`
 5. Optionally creates a bootstrap admin account
@@ -73,14 +74,13 @@ The `storage.dataDir` path (default `./data`) holds:
 
 ```
 data/
-  registry.sqlite          # the database
   blobs/
     <namespace>/
       <extension-id>/
         <version>.js       # compiled extension source
 ```
 
-Blob files are written atomically via a temp-file-then-rename pattern. If the server crashes mid-write, temp files (`.tmp-*`) are cleaned up on the next startup.
+The schema lives in the PostgreSQL database you point the server at. Blob files are written atomically via a temp-file-then-rename pattern. If the server crashes mid-write, temp files (`.tmp-*`) are cleaned up on the next startup.
 
 ## Signals
 

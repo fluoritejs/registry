@@ -7,12 +7,12 @@ import { versionJson } from "../version-json.js";
 
 const router = Router();
 
-router.get("/", adminMiddleware, (req, res) => {
+router.get("/", adminMiddleware, async (req, res) => {
   const config = getConfig();
   const maxPageSize = config.listings.maxPageSize;
   const defaultSize = config.listings.defaultPageSize;
   const limit = parseLimit(req.query, defaultSize, maxPageSize);
-  const after = parseKeysetCursor(req.query) ?? Number.MAX_SAFE_INTEGER;
+  const after = parseKeysetCursor(req.query) ?? 2_147_483_647;
   const status = req.query.status;
 
   if (!status) {
@@ -27,7 +27,7 @@ router.get("/", adminMiddleware, (req, res) => {
       });
   }
 
-  const versions = getStmt("listVersionsWorklist").all(
+  const versions = await getStmt("listVersionsWorklist").all(
     status,
     limit + 1,
     after,

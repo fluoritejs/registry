@@ -43,7 +43,7 @@ router.get("/me", sessionAuth, (req, res) => {
   res.json(userJson(req.auth.user));
 });
 
-router.post("/signup", rateLimitMiddleware("signup"), (req, res) => {
+router.post("/signup", rateLimitMiddleware("signup"), async (req, res) => {
   const { namespace, password, displayName } = req.body ?? {};
   const config = getConfig();
 
@@ -95,7 +95,7 @@ router.post("/signup", rateLimitMiddleware("signup"), (req, res) => {
       });
   }
 
-  const existing = getStmt("getUserByNamespace").get(namespace);
+  const existing = await getStmt("getUserByNamespace").get(namespace);
   if (existing) {
     return res
       .status(409)
@@ -108,7 +108,7 @@ router.post("/signup", rateLimitMiddleware("signup"), (req, res) => {
       });
   }
 
-  const userCount = getStmt("countUsers").get().count;
+  const userCount = (await getStmt("countUsers").get()).count;
   let type = "normal";
   let trusted = 0;
   if (getDeployment().admin.firstUserBecomesAdmin && userCount === 0) {
@@ -117,7 +117,7 @@ router.post("/signup", rateLimitMiddleware("signup"), (req, res) => {
   }
 
   const hash = hashPassword(password);
-  const user = getStmt("createUser").get(
+  const user = await getStmt("createUser").get(
     namespace,
     displayName || "",
     hash,
@@ -127,7 +127,7 @@ router.post("/signup", rateLimitMiddleware("signup"), (req, res) => {
 
   if (userCount === 0 && getDeployment().admin.firstUserBecomesAdmin) {
     const { tosVersion, privacyVersion } = loadManifest(config.terms.dir);
-    getStmt("updateUserTermsAcceptance").run(
+    await getStmt("updateUserTermsAcceptance").run(
       nowIso(),
       tosVersion,
       nowIso(),
@@ -138,17 +138,22 @@ router.post("/signup", rateLimitMiddleware("signup"), (req, res) => {
 
   const token = generateToken();
   const tokenHash = hashToken(token);
-  getStmt("createAuthToken").run(user.id, tokenHash, nowIso(), expiryDate());
+  await getStmt("createAuthToken").run(
+    user.id,
+    tokenHash,
+    nowIso(),
+    expiryDate(),
+  );
 
-  const createdUser = getStmt("getUserById").get(user.id);
+  const createdUser = await getStmt("getUserById").get(user.id);
   log.info(`User signed up: ${namespace} (type=${type})`);
   recordSignupSuccess(req);
 
-  const response = successResponse(res, createdUser, token, config);
+  const response = await successResponse(res, createdUser, token, config);
   res.status(201).json(response);
 });
 
-router.post("/login", rateLimitMiddleware("login"), (req, res) => {
+router.post("/login", rateLimitMiddleware("login"), async (req, res) => {
   const { namespace, password } = req.body ?? {};
 
   if (!namespace || typeof password !== "string" || !password) {
@@ -163,7 +168,7 @@ router.post("/login", rateLimitMiddleware("login"), (req, res) => {
       });
   }
 
-  const user = getStmt("getUserByNamespace").get(namespace);
+  const user = await getStmt("getUserByNamespace").get(namespace);
   if (!user || !user.password_hash) {
     return res
       .status(401)
@@ -190,29 +195,34 @@ router.post("/login", rateLimitMiddleware("login"), (req, res) => {
 
   const token = generateToken();
   const tokenHash = hashToken(token);
-  getStmt("createAuthToken").run(user.id, tokenHash, nowIso(), expiryDate());
+  await getStmt("createAuthToken").run(
+    user.id,
+    tokenHash,
+    nowIso(),
+    expiryDate(),
+  );
 
   log.info(`User logged in: ${namespace}`);
 
   const config = getConfig();
-  const response = successResponse(res, user, token, config);
+  const response = await successResponse(res, user, token, config);
   res.json(response);
 });
 
-router.post("/logout", (req, res) => {
+router.post("/logout", async (req, res) => {
   const authHeader = req.headers.authorization;
   if (authHeader?.startsWith("Bearer ")) {
     const tokenHash = hashToken(authHeader.slice(7));
-    const session = getStmt("getAuthToken").get(tokenHash);
+    const session = await getStmt("getAuthToken").get(tokenHash);
     if (session) {
-      getStmt("deleteAuthToken").run(session.id);
+      await getStmt("deleteAuthToken").run(session.id);
     }
   }
   res.status(204).end();
 });
 
-router.get("/sessions", sessionAuth, (req, res) => {
-  const sessions = getStmt("listAuthTokens").all(req.auth.user.id);
+router.get("/sessions", sessionAuth, async (req, res) => {
+  const sessions = await getStmt("listAuthTokens").all(req.auth.user.id);
   const now = new Date();
   const active = sessions
     .filter((s) => new Date(s.expires_at) > now)
@@ -224,12 +234,12 @@ router.get("/sessions", sessionAuth, (req, res) => {
   res.json(active);
 });
 
-router.delete("/sessions", sessionAuth, (req, res) => {
-  getStmt("deleteAllAuthTokens").run(req.auth.user.id);
+router.delete("/sessions", sessionAuth, async (req, res) => {
+  await getStmt("deleteAllAuthTokens").run(req.auth.user.id);
   res.status(204).end();
 });
 
-router.delete("/sessions/:id", sessionAuth, (req, res) => {
+router.delete("/sessions/:id", sessionAuth, async (req, res) => {
   const sessionId = Number(req.params.id);
   if (!Number.isFinite(sessionId) || sessionId <= 0) {
     return res
@@ -242,7 +252,7 @@ router.delete("/sessions/:id", sessionAuth, (req, res) => {
         },
       });
   }
-  const sessions = getStmt("listAuthTokens").all(req.auth.user.id);
+  const sessions = await getStmt("listAuthTokens").all(req.auth.user.id);
   const session = sessions.find((s) => s.id === sessionId);
   if (!session) {
     return res
@@ -255,12 +265,12 @@ router.delete("/sessions/:id", sessionAuth, (req, res) => {
         },
       });
   }
-  getStmt("deleteAuthToken").run(session.id);
+  await getStmt("deleteAuthToken").run(session.id);
   res.status(204).end();
 });
 
-router.get("/tokens", sessionAuth, (req, res) => {
-  const tokens = getStmt("listAutomationTokens").all(req.auth.user.id);
+router.get("/tokens", sessionAuth, async (req, res) => {
+  const tokens = await getStmt("listAutomationTokens").all(req.auth.user.id);
   res.json(
     tokens.map((t) => ({
       id: t.id,
@@ -272,7 +282,7 @@ router.get("/tokens", sessionAuth, (req, res) => {
   );
 });
 
-router.post("/tokens", sessionAuth, (req, res) => {
+router.post("/tokens", sessionAuth, async (req, res) => {
   const { name, scopes } = req.body ?? {};
   if (!name || !scopes || !Array.isArray(scopes) || scopes.length === 0) {
     return res
@@ -302,7 +312,7 @@ router.post("/tokens", sessionAuth, (req, res) => {
   const token = generateToken();
   const id = crypto.randomUUID();
   const tokenHash = hashToken(token);
-  getStmt("createAutomationToken").run(
+  await getStmt("createAutomationToken").run(
     id,
     req.auth.user.id,
     name,
@@ -318,8 +328,8 @@ router.post("/tokens", sessionAuth, (req, res) => {
     .json({ id, name, scopes, createdAt: nowIso(), lastUsedAt: null, token });
 });
 
-router.delete("/tokens/:id", sessionAuth, (req, res) => {
-  const result = getStmt("deleteAutomationToken").run(
+router.delete("/tokens/:id", sessionAuth, async (req, res) => {
+  const result = await getStmt("deleteAutomationToken").run(
     req.params.id,
     req.auth.user.id,
   );

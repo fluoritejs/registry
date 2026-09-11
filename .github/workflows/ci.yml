@@ -50,6 +50,22 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     needs: [lint, format]
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: fluorite
+          POSTGRES_PASSWORD: fluorite
+          POSTGRES_DB: fluorite
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fluorite"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://fluorite:fluorite@localhost:5432/fluorite
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -10,7 +10,6 @@ import {
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
-  openDb,
   migrate,
   reconcileStaging,
   cleanupTempBlobs,
@@ -18,39 +17,34 @@ import {
   getStmt,
   blobPath,
 } from "../src/db.js";
+import { openTestDb } from "./helpers.js";
 
 describe("Migration & recovery", () => {
-  it("creates all tables", () => {
-    const dir = mkdtempSync(join(tmpdir(), "migration-"));
-    const db = openDb(join(dir, "test.sqlite"));
-    migrate(db);
+  it("creates all tables", async () => {
+    const { db, cleanup } = await openTestDb();
+    await migrate(db);
     prepare(db);
 
-    const tables = db
-      .prepare(
-        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name",
-      )
-      .all();
-    const names = tables
-      .map((t) => t.name)
-      .filter((n) => !n.startsWith("sqlite"));
+    const tables = await db.unsafe(
+      "SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema() ORDER BY table_name",
+    );
+    const names = tables.map((t) => t.table_name);
     assert.ok(names.includes("users"));
     assert.ok(names.includes("auth_tokens"));
     assert.ok(names.includes("automation_tokens"));
     assert.ok(names.includes("versions"));
     assert.ok(names.includes("notifications"));
     assert.ok(names.includes("webhooks"));
-    db.close();
-    rmSync(dir, { recursive: true, force: true });
+    await cleanup();
   });
 
-  it("promotes staging version when blob exists", () => {
+  it("promotes staging version when blob exists", async () => {
     const dir = mkdtempSync(join(tmpdir(), "recovery-"));
-    const db = openDb(join(dir, "test.sqlite"));
-    migrate(db);
+    const { db, cleanup } = await openTestDb();
+    await migrate(db);
     prepare(db);
 
-    const user = getStmt("createUser").run(
+    const user = await getStmt("createUser").get(
       "testuser",
       "Test",
       "hash",
@@ -61,8 +55,8 @@ describe("Migration & recovery", () => {
     mkdirSync(join(dir, "blobs", "testuser", "ext"), { recursive: true });
     writeFileSync(bp, "// extension code");
 
-    getStmt("createVersion").run(
-      user.lastInsertRowid,
+    await getStmt("createVersion").run(
+      user.id,
       "ext",
       "1.0.0",
       "staging",
@@ -72,21 +66,21 @@ describe("Migration & recovery", () => {
       null,
     );
 
-    reconcileStaging(db, dir);
+    await reconcileStaging(db, dir);
 
-    const v = getStmt("getVersion").get("testuser", "ext", "1.0.0");
+    const v = await getStmt("getVersion").get("testuser", "ext", "1.0.0");
     assert.strictEqual(v.status, "pending");
-    db.close();
+    await cleanup();
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("deletes staging version when blob is missing", () => {
+  it("deletes staging version when blob is missing", async () => {
     const dir = mkdtempSync(join(tmpdir(), "recovery-"));
-    const db = openDb(join(dir, "test.sqlite"));
-    migrate(db);
+    const { db, cleanup } = await openTestDb();
+    await migrate(db);
     prepare(db);
 
-    const user = getStmt("createUser").run(
+    const user = await getStmt("createUser").get(
       "testuser2",
       "Test2",
       "hash",
@@ -95,8 +89,8 @@ describe("Migration & recovery", () => {
     );
     const bp = blobPath(dir, "testuser2", "ext", "2.0.0");
 
-    getStmt("createVersion").run(
-      user.lastInsertRowid,
+    await getStmt("createVersion").run(
+      user.id,
       "ext",
       "2.0.0",
       "staging",
@@ -106,11 +100,11 @@ describe("Migration & recovery", () => {
       null,
     );
 
-    reconcileStaging(db, dir);
+    await reconcileStaging(db, dir);
 
-    const v = getStmt("getVersion").get("testuser2", "ext", "2.0.0");
+    const v = await getStmt("getVersion").get("testuser2", "ext", "2.0.0");
     assert.strictEqual(v, undefined);
-    db.close();
+    await cleanup();
     rmSync(dir, { recursive: true, force: true });
   });
 

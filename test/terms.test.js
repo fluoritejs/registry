@@ -8,7 +8,7 @@ describe("Terms of Service & Privacy Policy", () => {
   let env, adminToken, admin, userToken, user, autoToken;
 
   before(async () => {
-    env = createTestEnv({}, { terms: { enforce: true } });
+    env = await createTestEnv({}, { terms: { enforce: true } });
     const adminRes = await signup(env.app, "termsadmin", "password123");
     adminToken = adminRes.body.token;
     admin = adminRes.body.user;
@@ -243,8 +243,8 @@ describe("Terms of Service & Privacy Policy", () => {
 describe("Terms — missing files", () => {
   let env;
 
-  before(() => {
-    env = createTestEnv({}, { terms: { enforce: true } });
+  before(async () => {
+    env = await createTestEnv({}, { terms: { enforce: true } });
   });
 
   after(() => env.cleanup());
@@ -262,7 +262,7 @@ describe("Terms — enforcement disabled", () => {
   let env, token;
 
   before(async () => {
-    env = createTestEnv({}, { terms: { enforce: false } });
+    env = await createTestEnv({}, { terms: { enforce: false } });
     const res = await signup(env.app, "noenforce", "password123");
     token = res.body.token;
   });
@@ -281,7 +281,7 @@ describe("Terms — missing manifest", () => {
   let env, token;
 
   before(async () => {
-    env = createTestEnv({}, { terms: { enforce: true } });
+    env = await createTestEnv({}, { terms: { enforce: true } });
     await signup(env.app, "nomanifestadmin", "password123");
     mkdirSync(join(env.dataDir, "terms"), { recursive: true });
     unlinkSync(join(env.dataDir, "terms", "manifest.yaml"));

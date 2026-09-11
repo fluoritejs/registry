@@ -10,6 +10,13 @@ const DEPLOYMENT_DEFAULTS = {
     requireHttps: false,
   },
   storage: { dataDir: "./data" },
+  database: {
+    host: "localhost",
+    port: 5432,
+    database: "fluorite",
+    user: "fluorite",
+    password: "",
+  },
   admin: { firstUserBecomesAdmin: true, bootstrapAccount: null },
 };
 
@@ -189,6 +196,9 @@ export function loadDeployment(overrides = {}) {
     deepMerge(loadYaml(resolve("deployment.yaml")), overrides),
   );
   validateDeployment(raw);
+  if (!raw.database?.connectionString && process.env.FLUORITE_DATABASE_URL) {
+    raw.database.connectionString = process.env.FLUORITE_DATABASE_URL;
+  }
   if (raw.admin.bootstrapAccount) {
     raw.admin.bootstrapAccount.password = resolveBootstrapPassword(
       raw.admin.bootstrapAccount,

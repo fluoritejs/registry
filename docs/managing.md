@@ -182,19 +182,13 @@ kill -SIGHUP <pid>
 
 ### Database
 
-The SQLite database lives at `<dataDir>/registry.sqlite`. To back it up:
-
-Stop the server first, then copy the file:
+The schema and metadata live in PostgreSQL. Use `pg_dump` to back it up:
 
 ```bash
-cp data/registry.sqlite data/registry.sqlite.bak
+pg_dump "postgres://fluorite:fluorite@localhost:5432/fluorite" > fluorite-dump.sql
 ```
 
-For a live backup while the server runs, use SQLite's backup command instead:
-
-```bash
-sqlite3 data/registry.sqlite ".backup data/registry-backup.sqlite"
-```
+`pg_dump` produces a consistent snapshot from a running server, so you don't need to stop the registry. Restore with `psql`.
 
 ### Blob Files
 
@@ -212,6 +206,6 @@ No manual intervention is needed after a crash.
 
 ## Scaling Notes
 
-- The server is single-process. For horizontal scaling, run multiple instances behind a load balancer with a shared database (replace SQLite with a networked alternative) or use separate instances with independent data directories.
+- The server is single-process but shares its state through PostgreSQL, so you can run multiple instances behind a load balancer against the same database.
 - Rate limiting is in-memory and per-process. Multiple instances have independent rate limit counters.
 - Config reload via `SIGHUP` only affects the process that receives the signal.

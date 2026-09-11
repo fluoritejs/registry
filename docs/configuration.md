@@ -15,6 +15,14 @@ server:
 storage:
   dataDir: "./data"
 
+database:
+  # connectionString: "postgres://fluorite:fluorite@localhost:5432/fluorite"
+  host: localhost
+  port: 5432
+  database: fluorite
+  user: fluorite
+  password: ""
+
 admin:
   firstUserBecomesAdmin: true
   # OR
@@ -34,9 +42,21 @@ admin:
 
 ### storage
 
-| Key       | Default  | Description                                                                         |
-| --------- | -------- | ----------------------------------------------------------------------------------- |
-| `dataDir` | `./data` | Directory for the SQLite database and compiled extension blobs. Created if missing. |
+| Key       | Default  | Description                                                                                           |
+| --------- | -------- | ----------------------------------------------------------------------------------------------------- |
+| `dataDir` | `./data` | Directory for compiled extension blobs. Created if missing. The schema lives in PostgreSQL, not here. |
+
+### database
+
+| Key                | Default     | Description                                                                                                     |
+| ------------------ | ----------- | --------------------------------------------------------------------------------------------------------------- |
+| `connectionString` | _none_      | Overrides host/port/database/user/password. Also settable via the `FLUORITE_DATABASE_URL` environment variable. |
+| `host`             | `localhost` | PostgreSQL host.                                                                                                |
+| `port`             | `5432`      | PostgreSQL port.                                                                                                |
+| `database`         | `fluorite`  | PostgreSQL database name.                                                                                       |
+| `user`             | `fluorite`  | PostgreSQL user.                                                                                                |
+| `password`         | `""`        | PostgreSQL password.                                                                                            |
+| `ssl`              | _off_       | When set (truthy), connects with TLS. Useful for hosted PostgreSQL (e.g. `ssl: true` or `ssl: "require"`).      |
 
 ### admin
 
@@ -125,12 +145,12 @@ Changing `passwordHashing` parameters only affects new passwords. Existing hashe
 
 ### publishing
 
-| Key                          | Default                                  | Description                                                                             |
-| ---------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------- |
-| `firstPublishRequiresReview` | `true`                                   | New (untrusted) users' first publish goes to `pending` status and needs admin approval. |
+| Key                          | Default                                  | Description                                                                                                                                                                                                    |
+| ---------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `firstPublishRequiresReview` | `true`                                   | New (untrusted) users' first publish goes to `pending` status and needs admin approval.                                                                                                                        |
 | `onePendingPerOwner`         | `true`                                   | When `true`, each user can have at most one `pending` or `staging` version at a time across all extensions. When `false`, a user may have a pending version in several extensions, but only one per extension. |
-| `namespacePattern`           | `^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$` | Regex for validating user namespaces on signup.                                         |
-| `packageIdPattern`           | `^[a-zA-Z0-9](?:[a-zA-Z0-9._-]{0,63})$`  | Regex for validating extension IDs in manifests.                                        |
+| `namespacePattern`           | `^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$` | Regex for validating user namespaces on signup.                                                                                                                                                                |
+| `packageIdPattern`           | `^[a-zA-Z0-9](?:[a-zA-Z0-9._-]{0,63})$`  | Regex for validating extension IDs in manifests.                                                                                                                                                               |
 
 Namespace pattern: lowercase alphanumeric, 1-40 chars, hyphens allowed but not at start/end.
 

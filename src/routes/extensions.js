@@ -66,28 +66,28 @@ function parseNamespace(ns) {
   return ns.startsWith("@") ? ns.slice(1) : ns;
 }
 
-function finalizeBlobDelete(v) {
+async function finalizeBlobDelete(v) {
   if (v.blob_path && existsSync(v.blob_path)) {
     try {
       unlinkSync(v.blob_path);
     } catch (err) {
-      getStmt("markVersionDeletionPending").run(v.id);
+      await getStmt("markVersionDeletionPending").run(v.id);
       log.warn(
         `Failed to delete blob ${v.blob_path}: ${err.message} (left pending for retry)`,
       );
       return false;
     }
   }
-  getStmt("deleteVersion").run(v.id);
+  await getStmt("deleteVersion").run(v.id);
   return true;
 }
 
-router.get("/", (req, res) => {
+router.get("/", async (req, res) => {
   const config = getConfig();
   const maxPageSize = config.listings.maxPageSize;
   const defaultSize = config.listings.defaultPageSize;
   const limit = parseLimit(req.query, defaultSize, maxPageSize);
-  const after = parseKeysetCursor(req.query) ?? Number.MAX_SAFE_INTEGER;
+  const after = parseKeysetCursor(req.query) ?? 2_147_483_647;
   const q = req.query.q;
   if (q !== undefined && typeof q !== "string") {
     return res
@@ -102,15 +102,25 @@ router.get("/", (req, res) => {
   }
 
   const identities = q
-    ? getStmt("searchExtensionIdentities").all(q, q, q, q, after, limit + 1)
-    : getStmt("listExtensionIdentities").all(after, limit + 1);
+    ? await getStmt("searchExtensionIdentities").all(
+        q,
+        q,
+        q,
+        q,
+        after,
+        limit + 1,
+      )
+    : await getStmt("listExtensionIdentities").all(after, limit + 1);
 
   const hasMore = identities.length > limit;
   const page = hasMore ? identities.slice(0, limit) : identities;
 
   const allRows = [];
   for (const { namespace, package_id } of page) {
-    const rows = getStmt("listVersionsByExtension").all(namespace, package_id);
+    const rows = await getStmt("listVersionsByExtension").all(
+      namespace,
+      package_id,
+    );
     allRows.push(...rows);
   }
 
@@ -122,10 +132,10 @@ router.get("/", (req, res) => {
   res.json({ extensions, nextCursor });
 });
 
-router.get("/:namespace/:id", (req, res) => {
+router.get("/:namespace/:id", async (req, res) => {
   const namespace = parseNamespace(req.params.namespace);
   const id = req.params.id;
-  const user = getStmt("getUserByNamespace").get(namespace);
+  const user = await getStmt("getUserByNamespace").get(namespace);
   if (!user) {
     return res
       .status(404)
@@ -166,9 +176,9 @@ router.get("/:namespace/:id", (req, res) => {
           },
         });
     }
-    versions = getStmt("listVersionsByOwner").all(namespace, id);
+    versions = await getStmt("listVersionsByOwner").all(namespace, id);
   } else {
-    versions = getStmt("listVersionsByExtension").all(namespace, id);
+    versions = await getStmt("listVersionsByExtension").all(namespace, id);
   }
 
   if (!versions.length) {
@@ -190,10 +200,10 @@ router.delete(
   "/:namespace/:id",
   authMiddleware,
   scopeMiddleware("publish"),
-  (req, res) => {
+  async (req, res) => {
     const namespace = parseNamespace(req.params.namespace);
     const id = req.params.id;
-    const user = getStmt("getUserByNamespace").get(namespace);
+    const user = await getStmt("getUserByNamespace").get(namespace);
     if (!user) {
       return res
         .status(404)
@@ -219,10 +229,10 @@ router.delete(
         });
     }
 
-    const versions = getStmt("listVersionsByOwner").all(namespace, id);
+    const versions = await getStmt("listVersionsByOwner").all(namespace, id);
     let pending = false;
     for (const v of versions) {
-      if (!finalizeBlobDelete(v)) pending = true;
+      if (!(await finalizeBlobDelete(v))) pending = true;
     }
     if (pending) {
       log.warn(`Extension delete left pending blobs: ${namespace}/${id}`);
@@ -234,7 +244,7 @@ router.delete(
             "One or more blobs could not be removed; the delete remains pending for retry.",
         });
     }
-    getStmt("deleteVersionsByOwnerAndPackage").run(user.id, id);
+    await getStmt("deleteVersionsByOwnerAndPackage").run(user.id, id);
     log.info(`Extension deleted: ${namespace}/${id}`);
     res.status(204).end();
   },
@@ -244,10 +254,10 @@ router.post(
   "/:namespace/:id/versions",
   authMiddleware,
   scopeMiddleware("publish"),
-  (req, res) => {
+  async (req, res) => {
     const namespace = parseNamespace(req.params.namespace);
     const id = req.params.id;
-    const user = getStmt("getUserByNamespace").get(namespace);
+    const user = await getStmt("getUserByNamespace").get(namespace);
     if (!user) {
       return res
         .status(404)
@@ -313,7 +323,7 @@ router.post(
         });
     }
 
-    if (getStmt("versionExists").get(user.id, id, manifest.version)) {
+    if (await getStmt("versionExists").get(user.id, id, manifest.version)) {
       return res
         .status(409)
         .json({
@@ -325,7 +335,7 @@ router.post(
         });
     }
 
-    const publishedVersions = getStmt("highestPublishedVersion").all(
+    const publishedVersions = await getStmt("highestPublishedVersion").all(
       user.id,
       id,
     );
@@ -344,7 +354,7 @@ router.post(
 
     if (
       getConfig().publishing.onePendingPerOwner &&
-      getStmt("hasPendingVersion").get(user.id)
+      (await getStmt("hasPendingVersion").get(user.id))
     ) {
       return res
         .status(403)
@@ -379,8 +389,8 @@ router.post(
     let versionId;
     let blobOwned = false;
     try {
-      runTransaction(() => {
-        getStmt("createVersion").run(
+      await runTransaction(async () => {
+        await getStmt("createVersion").run(
           user.id,
           id,
           manifest.version,
@@ -390,10 +400,12 @@ router.post(
           nowIso(),
           null,
         );
-        versionId = getStmt("getVersionByOwnerPackageVersion").get(
-          user.id,
-          id,
-          manifest.version,
+        versionId = (
+          await getStmt("getVersionByOwnerPackageVersion").get(
+            user.id,
+            id,
+            manifest.version,
+          )
         ).id;
       });
 
@@ -401,8 +413,8 @@ router.post(
       renameSync(stagingPath, finalPath);
       blobOwned = true;
 
-      runTransaction(() => {
-        getStmt("finalizeVersion").run(
+      await runTransaction(async () => {
+        await getStmt("finalizeVersion").run(
           status,
           publishedAt,
           finalPath,
@@ -425,7 +437,7 @@ router.post(
       }
       if (versionId !== undefined) {
         try {
-          getStmt("deleteVersion").run(versionId);
+          await getStmt("deleteVersion").run(versionId);
         } catch {
           /* ignore */
         }
@@ -442,11 +454,15 @@ router.post(
         });
     }
 
-    const version = getStmt("getVersion").get(namespace, id, manifest.version);
+    const version = await getStmt("getVersion").get(
+      namespace,
+      id,
+      manifest.version,
+    );
 
     try {
       const event = trusted ? "version.published" : "version.pending";
-      fireWebhooks(event, {
+      await fireWebhooks(event, {
         extension: { namespace, id },
         version: { version: manifest.version, status },
       });
@@ -464,10 +480,10 @@ router.post(
   },
 );
 
-router.get("/:namespace/:id/versions/:version", (req, res) => {
+router.get("/:namespace/:id/versions/:version", async (req, res) => {
   const namespace = parseNamespace(req.params.namespace);
   const { id, version } = req.params;
-  const user = getStmt("getUserByNamespace").get(namespace);
+  const user = await getStmt("getUserByNamespace").get(namespace);
   if (!user) {
     return res
       .status(404)
@@ -478,7 +494,7 @@ router.get("/:namespace/:id/versions/:version", (req, res) => {
 
   let v;
   if (version === "latest") {
-    const candidates = getStmt("resolveLatestVersion").all(namespace, id);
+    const candidates = await getStmt("resolveLatestVersion").all(namespace, id);
     v = highestVersion(candidates);
     if (!v) {
       return res
@@ -492,7 +508,7 @@ router.get("/:namespace/:id/versions/:version", (req, res) => {
         });
     }
   } else {
-    v = getStmt("getVersion").get(namespace, id, version);
+    v = await getStmt("getVersion").get(namespace, id, version);
     if (!v) {
       return res
         .status(404)
@@ -533,7 +549,7 @@ router.get("/:namespace/:id/versions/:version", (req, res) => {
           },
         });
     }
-    getStmt("incrementDownloads").run(v.id);
+    await getStmt("incrementDownloads").run(v.id);
     const code = readFileSync(v.blob_path, "utf8");
     res.set("Content-Type", "application/javascript");
     res.set("X-Content-Type-Options", "nosniff");
@@ -547,7 +563,7 @@ router.get("/:namespace/:id/versions/:version", (req, res) => {
 router.patch(
   "/:namespace/:id/versions/:version",
   adminMiddleware,
-  (req, res) => {
+  async (req, res) => {
     const namespace = parseNamespace(req.params.namespace);
     const { id, version } = req.params;
     const { status: newStatus, reason } = req.body ?? {};
@@ -564,7 +580,7 @@ router.patch(
         });
     }
 
-    const v = getStmt("getVersion").get(namespace, id, version);
+    const v = await getStmt("getVersion").get(namespace, id, version);
     if (!v) {
       return res
         .status(404)
@@ -596,18 +612,18 @@ router.patch(
         ? `Your version ${version} of ${id} has been approved.`
         : `Your version ${version} of ${id} has been rejected.${reason ? ` Reason: ${reason}` : ""}`;
 
-    runTransaction(() => {
-      getStmt("updateVersionStatus").run(dbStatus, publishedAt, v.id);
+    await runTransaction(async () => {
+      await getStmt("updateVersionStatus").run(dbStatus, publishedAt, v.id);
 
       if (newStatus === "approved") {
-        const owner = getStmt("getUserById").get(v.owner_id);
+        const owner = await getStmt("getUserById").get(v.owner_id);
         if (owner && !owner.trusted) {
-          getStmt("updateUserTrust").run(1, namespace);
+          await getStmt("updateUserTrust").run(1, namespace);
           log.info(`User ${namespace} is now trusted (first approval)`);
         }
       }
 
-      getStmt("createNotification").run(
+      await getStmt("createNotification").run(
         v.owner_id,
         message,
         id,
@@ -619,14 +635,14 @@ router.patch(
 
     const event =
       newStatus === "approved" ? "version.approved" : "version.rejected";
-    fireWebhooks(event, {
+    await fireWebhooks(event, {
       extension: { namespace, id },
       version: { version, status: dbStatus },
     });
 
     log.info(`Version ${namespace}/${id}@${version} ${newStatus}`);
 
-    const updated = getStmt("getVersion").get(namespace, id, version);
+    const updated = await getStmt("getVersion").get(namespace, id, version);
     res.json(versionJson(updated));
   },
 );
@@ -635,10 +651,10 @@ router.delete(
   "/:namespace/:id/versions/:version",
   authMiddleware,
   scopeMiddleware("publish"),
-  (req, res) => {
+  async (req, res) => {
     const namespace = parseNamespace(req.params.namespace);
     const { id, version } = req.params;
-    const user = getStmt("getUserByNamespace").get(namespace);
+    const user = await getStmt("getUserByNamespace").get(namespace);
     if (!user) {
       return res
         .status(404)
@@ -646,7 +662,7 @@ router.delete(
           error: { code: "NOT_FOUND", message: "Not found.", field: null },
         });
     }
-    const v = getStmt("getVersion").get(namespace, id, version);
+    const v = await getStmt("getVersion").get(namespace, id, version);
     if (!v) {
       return res
         .status(404)
@@ -672,7 +688,7 @@ router.delete(
         });
     }
 
-    if (!finalizeBlobDelete(v)) {
+    if (!(await finalizeBlobDelete(v))) {
       log.warn(
         `Version delete left blob pending: ${namespace}/${id}@${version}`,
       );
@@ -693,7 +709,7 @@ router.patch(
   "/:namespace/:id/versions/:version/yank",
   authMiddleware,
   scopeMiddleware("publish"),
-  (req, res) => {
+  async (req, res) => {
     const namespace = parseNamespace(req.params.namespace);
     const { id, version } = req.params;
     const { yanked, reason } = req.body ?? {};
@@ -710,7 +726,7 @@ router.patch(
         });
     }
 
-    const user = getStmt("getUserByNamespace").get(namespace);
+    const user = await getStmt("getUserByNamespace").get(namespace);
     if (!user) {
       return res
         .status(404)
@@ -718,7 +734,7 @@ router.patch(
           error: { code: "NOT_FOUND", message: "Not found.", field: null },
         });
     }
-    const v = getStmt("getVersion").get(namespace, id, version);
+    const v = await getStmt("getVersion").get(namespace, id, version);
     if (!v) {
       return res
         .status(404)
@@ -745,20 +761,20 @@ router.patch(
     }
 
     const wasYanked = v.yanked;
-    getStmt("updateVersionYank").run(
+    await getStmt("updateVersionYank").run(
       yanked ? 1 : 0,
       yanked ? reason || null : null,
       v.id,
     );
 
     if (yanked && !wasYanked) {
-      fireWebhooks("version.yanked", {
+      await fireWebhooks("version.yanked", {
         extension: { namespace, id },
         version: { version, status: v.status },
       });
     }
 
-    const updated = getStmt("getVersion").get(namespace, id, version);
+    const updated = await getStmt("getVersion").get(namespace, id, version);
     res.json(versionJson(updated));
   },
 );

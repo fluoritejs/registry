@@ -32,7 +32,7 @@ describe("Webhooks — encryption key required", () => {
   let env, adminToken;
 
   before(async () => {
-    env = createTestEnv();
+    env = await createTestEnv();
     const res = await signup(env.app, "keylessadmin", "password123");
     adminToken = res.body.token;
   });
@@ -73,7 +73,7 @@ describe("Webhooks", () => {
 
   before(async () => {
     encryptionKey = crypto.randomBytes(32).toString("hex");
-    env = createTestEnv({}, { webhooks: { encryptionKey } });
+    env = await createTestEnv({}, { webhooks: { encryptionKey } });
     const res = await signup(env.app, "whadmin", "password123");
     adminToken = res.body.token;
   });

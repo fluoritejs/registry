@@ -7,15 +7,16 @@ describe("Notifications", () => {
   let env, userToken, adminToken, notifId;
 
   before(async () => {
-    env = createTestEnv();
+    env = await createTestEnv();
     const userRes = await signup(env.app, "notifuser", "password123");
     userToken = userRes.body.token;
     const adminRes = await signup(env.app, "notifadmin", "password123");
     adminToken = adminRes.body.token;
 
     // Create a notification for the user
-    const notif = getStmt("createNotification").get(
-      getStmt("getUserByNamespace").get("notifuser").id,
+    const user = await getStmt("getUserByNamespace").get("notifuser");
+    const notif = await getStmt("createNotification").get(
+      user.id,
       "Your extension has been approved.",
       "test-ext",
       "1.0.0",
@@ -60,8 +61,9 @@ describe("Notifications", () => {
 
   it("deletes a single notification", async () => {
     // Create another notification
-    getStmt("createNotification").run(
-      getStmt("getUserByNamespace").get("notifuser").id,
+    const user2 = await getStmt("getUserByNamespace").get("notifuser");
+    await getStmt("createNotification").run(
+      user2.id,
       "Test notification",
       "test-ext",
       "1.0.0",

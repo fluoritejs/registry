@@ -8,7 +8,16 @@ server:
 
 storage:
   dataDir: ./data
-  # Resolved paths at boot: <dataDir>/registry.sqlite, <dataDir>/blobs/
+  # Resolved paths at boot: <dataDir>/blobs/
+
+database:
+  # A connection string wins over the individual fields below.
+  # connectionString: postgres://fluorite:fluorite@localhost:5432/fluorite
+  host: localhost
+  port: 5432
+  database: fluorite
+  user: fluorite
+  password: ""
 
 admin:
   # First signups are not auto-promoted to admin. Provision an admin via

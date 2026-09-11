@@ -12,8 +12,8 @@ import {
 describe("Auth", () => {
   describe("signup", () => {
     let env;
-    before(() => {
-      env = createTestEnv();
+    before(async () => {
+      env = await createTestEnv();
     });
     after(() => env.cleanup());
 
@@ -53,8 +53,8 @@ describe("Auth", () => {
 
   describe("first user becomes admin", () => {
     let env;
-    before(() => {
-      env = createTestEnv();
+    before(async () => {
+      env = await createTestEnv();
     });
     after(() => env.cleanup());
 
@@ -74,8 +74,8 @@ describe("Auth", () => {
 
   describe("bootstrap account path", () => {
     let env;
-    before(() => {
-      env = createTestEnv({
+    before(async () => {
+      env = await createTestEnv({
         admin: {
           firstUserBecomesAdmin: false,
           bootstrapAccount: {
@@ -105,7 +105,7 @@ describe("Auth", () => {
   describe("login", () => {
     let env;
     before(async () => {
-      env = createTestEnv();
+      env = await createTestEnv();
       await signup(env.app, "logintest", "password123");
     });
     after(() => env.cleanup());
@@ -131,7 +131,7 @@ describe("Auth", () => {
   describe("logout", () => {
     let env, token;
     before(async () => {
-      env = createTestEnv();
+      env = await createTestEnv();
       const res = await signup(env.app, "logoutuser", "password123");
       token = res.body.token;
     });
@@ -153,7 +153,7 @@ describe("Auth", () => {
   describe("me", () => {
     let env, token;
     before(async () => {
-      env = createTestEnv();
+      env = await createTestEnv();
       const res = await signup(env.app, "meuser", "password123");
       token = res.body.token;
     });
@@ -175,9 +175,10 @@ describe("Auth", () => {
     });
 
     it("rejects expired token", async () => {
-      env.db
-        .prepare("UPDATE auth_tokens SET expires_at = ? WHERE token_hash = ?")
-        .run("2000-01-01T00:00:00.000Z", hashToken(token));
+      await env.db.unsafe(
+        "UPDATE auth_tokens SET expires_at = $1 WHERE token_hash = $2",
+        ["2000-01-01T00:00:00.000Z", hashToken(token)],
+      );
       const res = await request(env.app, "GET", "/v0/auth/me", {
         headers: authHeaders(token),
       });
@@ -189,7 +190,7 @@ describe("Auth", () => {
   describe("sessions", () => {
     let env, token;
     before(async () => {
-      env = createTestEnv();
+      env = await createTestEnv();
       const res = await signup(env.app, "sessionuser", "password123");
       token = res.body.token;
     });
@@ -251,7 +252,7 @@ describe("Auth", () => {
   describe("automation tokens", () => {
     let env, token;
     before(async () => {
-      env = createTestEnv();
+      env = await createTestEnv();
       const res = await signup(env.app, "autotoken", "password123");
       token = res.body.token;
     });
@@ -280,7 +281,7 @@ describe("Auth", () => {
   describe("password change revokes tokens", () => {
     let env, sessionToken, autoToken;
     before(async () => {
-      env = createTestEnv();
+      env = await createTestEnv();
       const signupRes = await signup(env.app, "revokeuser", "password123");
       sessionToken = signupRes.body.token;
 

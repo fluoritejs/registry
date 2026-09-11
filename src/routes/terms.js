@@ -46,7 +46,7 @@ router.get("/privacy", (req, res) =>
   sendDocument(res, "privacy", "privacyVersion"),
 );
 
-router.post("/terms/accept", requireSession, (req, res) => {
+router.post("/terms/accept", requireSession, async (req, res) => {
   const user = req.auth.user;
   const { tosVersion, privacyVersion } = req.body || {};
   const current = loadManifest(termsDir());
@@ -69,7 +69,7 @@ router.post("/terms/accept", requireSession, (req, res) => {
         },
       });
   }
-  getStmt("updateUserTermsAcceptance").run(
+  await getStmt("updateUserTermsAcceptance").run(
     nowIso(),
     tosVersion,
     nowIso(),

@@ -332,11 +332,13 @@ export async function deliverWithRetry(wh, body, event, cfg = {}) {
   log.error(`Webhook delivery to ${wh.url} exhausted retries`);
 }
 
-export function fireWebhooks(event, payload) {
+export async function fireWebhooks(event, payload) {
   const cfg = getConfig().webhooks;
   if (!cfg) return;
 
-  const webhooks = getStmt("listEnabledWebhooksForEvent").all(`%${event}%`);
+  const webhooks = await getStmt("listEnabledWebhooksForEvent").all(
+    `%${event}%`,
+  );
   if (!webhooks.length) return;
 
   const body = JSON.stringify({

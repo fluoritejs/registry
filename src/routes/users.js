@@ -9,19 +9,19 @@ import { log } from "../logger.js";
 
 const router = Router();
 
-router.get("/", (req, res) => {
+router.get("/", async (req, res) => {
   const config = getConfig();
   const maxPageSize = config.listings.maxPageSize;
   const defaultSize = config.listings.defaultPageSize;
   const limit = parseLimit(req.query, defaultSize, maxPageSize);
   const offset = parseCursor(req.query);
-  const users = getStmt("listUsers").all(limit + 1, offset);
+  const users = await getStmt("listUsers").all(limit + 1, offset);
   const sliced = users.slice(0, limit);
   const nextCursor = users.length > limit ? encodeCursor(offset + limit) : null;
   res.json({ users: sliced.map((u) => userJson(u)), nextCursor });
 });
 
-router.post("/", (req, res) => {
+router.post("/", async (req, res) => {
   if (!req.auth || req.auth.user.type !== "admin") {
     return res
       .status(403)
@@ -75,7 +75,7 @@ router.post("/", (req, res) => {
         },
       });
   }
-  const existing = getStmt("getUserByNamespace").get(namespace);
+  const existing = await getStmt("getUserByNamespace").get(namespace);
   if (existing) {
     return res
       .status(409)
@@ -88,20 +88,20 @@ router.post("/", (req, res) => {
       });
   }
   const hash = hashPassword(password);
-  const result = getStmt("createUser").get(
+  const result = await getStmt("createUser").get(
     namespace,
     displayName || "",
     hash,
     "normal",
     0,
   );
-  const user = getStmt("getUserById").get(result.id);
+  const user = await getStmt("getUserById").get(result.id);
   log.info(`Admin created user: ${namespace}`);
   res.status(201).json(userJson(user));
 });
 
-router.get("/:namespace", (req, res) => {
-  const user = getStmt("getUserByNamespace").get(req.params.namespace);
+router.get("/:namespace", async (req, res) => {
+  const user = await getStmt("getUserByNamespace").get(req.params.namespace);
   if (!user) {
     return res
       .status(404)
@@ -112,7 +112,7 @@ router.get("/:namespace", (req, res) => {
   res.json(userJson(user));
 });
 
-router.patch("/:namespace", (req, res) => {
+router.patch("/:namespace", async (req, res) => {
   if (!req.auth || req.auth.tokenKind !== "session") {
     return res
       .status(401)
@@ -124,7 +124,7 @@ router.patch("/:namespace", (req, res) => {
         },
       });
   }
-  const target = getStmt("getUserByNamespace").get(req.params.namespace);
+  const target = await getStmt("getUserByNamespace").get(req.params.namespace);
   if (!target) {
     return res
       .status(404)
@@ -162,26 +162,26 @@ router.patch("/:namespace", (req, res) => {
         });
     }
     const hash = hashPassword(password);
-    runTransaction(() => {
-      getStmt("updateUserPassword").run(hash, target.namespace);
-      getStmt("deleteAllAuthTokens").run(target.id);
-      getStmt("deleteAllAutomationTokens").run(target.id);
+    await runTransaction(async () => {
+      await getStmt("updateUserPassword").run(hash, target.namespace);
+      await getStmt("deleteAllAuthTokens").run(target.id);
+      await getStmt("deleteAllAutomationTokens").run(target.id);
     });
     log.info(
       `Password changed for ${target.namespace} — all sessions and tokens revoked`,
     );
-    updatedUser = getStmt("getUserByNamespace").get(target.namespace);
+    updatedUser = await getStmt("getUserByNamespace").get(target.namespace);
   }
 
   if (displayName !== undefined) {
-    getStmt("updateUserDisplayName").run(displayName, target.namespace);
-    updatedUser = getStmt("getUserByNamespace").get(target.namespace);
+    await getStmt("updateUserDisplayName").run(displayName, target.namespace);
+    updatedUser = await getStmt("getUserByNamespace").get(target.namespace);
   }
 
   res.json(userJson(updatedUser));
 });
 
-router.delete("/:namespace", (req, res) => {
+router.delete("/:namespace", async (req, res) => {
   if (!req.auth || req.auth.tokenKind !== "session") {
     return res
       .status(401)
@@ -193,7 +193,7 @@ router.delete("/:namespace", (req, res) => {
         },
       });
   }
-  const target = getStmt("getUserByNamespace").get(req.params.namespace);
+  const target = await getStmt("getUserByNamespace").get(req.params.namespace);
   if (!target) {
     return res
       .status(404)
@@ -214,12 +214,12 @@ router.delete("/:namespace", (req, res) => {
         },
       });
   }
-  const versions = getStmt("listVersionsByUser").all(target.id);
+  const versions = await getStmt("listVersionsByUser").all(target.id);
   for (const v of versions) {
     try {
-      getStmt("markVersionDeletionPending").run(v.id);
+      await getStmt("markVersionDeletionPending").run(v.id);
       if (v.blob_path && existsSync(v.blob_path)) unlinkSync(v.blob_path);
-      getStmt("deleteVersion").run(v.id);
+      await getStmt("deleteVersion").run(v.id);
     } catch (err) {
       log.error(
         `Failed to delete blob ${v.blob_path} for user ${target.namespace}: ${err.message}`,
@@ -235,14 +235,14 @@ router.delete("/:namespace", (req, res) => {
         });
     }
   }
-  getStmt("deleteAllAuthTokens").run(target.id);
-  getStmt("deleteAllAutomationTokens").run(target.id);
-  deleteUserCascade(target.id);
+  await getStmt("deleteAllAuthTokens").run(target.id);
+  await getStmt("deleteAllAutomationTokens").run(target.id);
+  await deleteUserCascade(target.id);
   log.info(`User deleted: ${target.namespace}`);
   res.status(204).end();
 });
 
-router.patch("/:namespace/role", (req, res) => {
+router.patch("/:namespace/role", async (req, res) => {
   if (!req.auth || req.auth.user.type !== "admin") {
     return res
       .status(403)
@@ -254,7 +254,7 @@ router.patch("/:namespace/role", (req, res) => {
         },
       });
   }
-  const target = getStmt("getUserByNamespace").get(req.params.namespace);
+  const target = await getStmt("getUserByNamespace").get(req.params.namespace);
   if (!target) {
     return res
       .status(404)
@@ -274,11 +274,11 @@ router.patch("/:namespace/role", (req, res) => {
         },
       });
   }
-  const updated = getStmt("updateUserRole").get(type, target.namespace);
+  const updated = await getStmt("updateUserRole").get(type, target.namespace);
   res.json(userJson(updated));
 });
 
-router.patch("/:namespace/trust", (req, res) => {
+router.patch("/:namespace/trust", async (req, res) => {
   if (!req.auth || req.auth.user.type !== "admin") {
     return res
       .status(403)
@@ -290,7 +290,7 @@ router.patch("/:namespace/trust", (req, res) => {
         },
       });
   }
-  const target = getStmt("getUserByNamespace").get(req.params.namespace);
+  const target = await getStmt("getUserByNamespace").get(req.params.namespace);
   if (!target) {
     return res
       .status(404)
@@ -310,7 +310,7 @@ router.patch("/:namespace/trust", (req, res) => {
         },
       });
   }
-  const updated = getStmt("updateUserTrust").get(
+  const updated = await getStmt("updateUserTrust").get(
     trusted ? 1 : 0,
     target.namespace,
   );

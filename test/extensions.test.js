@@ -90,7 +90,7 @@ describe("Extensions - review disabled", () => {
   let env, userToken;
 
   before(async () => {
-    env = createTestEnv(
+    env = await createTestEnv(
       {},
       { publishing: { firstPublishRequiresReview: false } },
     );
@@ -124,7 +124,7 @@ describe("Extensions - trusted publish", () => {
   let env, trustedToken;
 
   before(async () => {
-    env = createTestEnv();
+    env = await createTestEnv();
     const res = await signup(env.app, "trustedowner", "password123");
     trustedToken = res.body.token;
   });
@@ -279,7 +279,7 @@ describe("Extensions - publish flow", () => {
   let env, untrustedToken, adminToken;
 
   before(async () => {
-    env = createTestEnv();
+    env = await createTestEnv();
     // First signup is auto-admin
     const adminRes = await signup(env.app, "adminuser", "password123");
     adminToken = adminRes.body.token;
@@ -656,7 +656,7 @@ describe("Stats", () => {
   let env, owner1Token, owner2Token;
 
   before(async () => {
-    env = createTestEnv(
+    env = await createTestEnv(
       {},
       { publishing: { firstPublishRequiresReview: false } },
     );
@@ -716,22 +716,22 @@ describe("Interrupted publish recovery", () => {
   let env;
 
   before(async () => {
-    env = createTestEnv();
+    env = await createTestEnv();
     await signup(env.app, "recoveruser", "password123");
     await signup(env.app, "recoveruser2", "password123");
   });
 
   after(() => env.cleanup());
 
-  function insertStagingRow(namespace, packageId, version) {
-    const user = getStmt("getUserByNamespace").get(namespace);
+  async function insertStagingRow(namespace, packageId, version) {
+    const user = await getStmt("getUserByNamespace").get(namespace);
     const path = blobPath(
       env.deployment.storage.dataDir,
       namespace,
       packageId,
       version,
     );
-    getStmt("createVersion").run(
+    await getStmt("createVersion").run(
       user.id,
       packageId,
       version,
@@ -750,14 +750,18 @@ describe("Interrupted publish recovery", () => {
     return path;
   }
 
-  it("promotes a staging version whose artifact exists after a crash between rename and finalize", () => {
-    const path = insertStagingRow("recoveruser", "interrupted-ext", "1.0.0");
+  it("promotes a staging version whose artifact exists after a crash between rename and finalize", async () => {
+    const path = await insertStagingRow(
+      "recoveruser",
+      "interrupted-ext",
+      "1.0.0",
+    );
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, SAMPLE_SOURCE, "utf8");
 
-    reconcileStaging(env.db, env.deployment.storage.dataDir);
+    await reconcileStaging(env.db, env.deployment.storage.dataDir);
 
-    const v = getStmt("getVersion").get(
+    const v = await getStmt("getVersion").get(
       "recoveruser",
       "interrupted-ext",
       "1.0.0",
@@ -768,12 +772,12 @@ describe("Interrupted publish recovery", () => {
     assert.ok(existsSync(path), "renamed artifact must not be orphaned");
   });
 
-  it("deletes a staging version with no artifact after a crash before the rename", () => {
-    insertStagingRow("recoveruser2", "interrupted-ext", "1.0.0");
+  it("deletes a staging version with no artifact after a crash before the rename", async () => {
+    await insertStagingRow("recoveruser2", "interrupted-ext", "1.0.0");
 
-    reconcileStaging(env.db, env.deployment.storage.dataDir);
+    await reconcileStaging(env.db, env.deployment.storage.dataDir);
 
-    const v = getStmt("getVersion").get(
+    const v = await getStmt("getVersion").get(
       "recoveruser2",
       "interrupted-ext",
       "1.0.0",

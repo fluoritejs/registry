@@ -5,7 +5,7 @@ Thanks for contributing to Fluorite Registry.
 ## Prerequisites
 
 - Node.js 22.13.0+ or 24+, with npm
-- A C compiler and Python 3 on Linux (needed to compile the `better-sqlite3` native addon during install)
+- A local PostgreSQL server for running the test suite (the tests create a temporary schema per test run, throwing nothing away)
 
 ## Getting Started
 
@@ -36,16 +36,16 @@ Thanks for contributing to Fluorite Registry.
 
 ## Project Layout
 
-| Path              | Purpose                                                          |
-| ----------------- | ---------------------------------------------------------------- |
-| `src/server.js`   | App assembly, middleware, startup, shutdown, SIGHUP reload       |
-| `src/routes/`     | Express routers. One file per resource (auth, users, extensions) |
-| `src/db.js`       | SQLite schema, migrations, prepared statements, crash recovery   |
-| `src/auth.js`     | Password hashing, tokens, rate limiting, auth middleware         |
-| `src/config.js`   | `deployment.yaml` / `config.yaml` loading and defaults           |
-| `src/manifest.js` | AST-based manifest extraction from compiled extension source     |
-| `src/webhooks.js` | Webhook delivery, signatures, retry logic                        |
-| `test/`           | Integration tests. Each route file has a matching `*.test.js`    |
+| Path              | Purpose                                                            |
+| ----------------- | ------------------------------------------------------------------ |
+| `src/server.js`   | App assembly, middleware, startup, shutdown, SIGHUP reload         |
+| `src/routes/`     | Express routers. One file per resource (auth, users, extensions)   |
+| `src/db.js`       | PostgreSQL schema, migrations, prepared statements, crash recovery |
+| `src/auth.js`     | Password hashing, tokens, rate limiting, auth middleware           |
+| `src/config.js`   | `deployment.yaml` / `config.yaml` loading and defaults             |
+| `src/manifest.js` | AST-based manifest extraction from compiled extension source       |
+| `src/webhooks.js` | Webhook delivery, signatures, retry logic                          |
+| `test/`           | Integration tests. Each route file has a matching `*.test.js`      |
 
 ## Running the Server Locally
 
@@ -53,11 +53,11 @@ Thanks for contributing to Fluorite Registry.
 npm start
 ```
 
-The server loads `deployment.yaml` and `config.yaml` from the repo root if present, otherwise uses defaults (port 3000, SQLite in `./data`). See [setup.md](setup.md) for the first-run flow.
+The server loads `deployment.yaml` and `config.yaml` from the repo root if present, otherwise uses defaults for the app code. It needs a PostgreSQL database; point it at one via `database.connectionString` in `deployment.yaml` or the `FLUORITE_DATABASE_URL` environment variable (default connection settings assume a local `fluorite` database). See [setup.md](setup.md) for the first-run flow.
 
 ## Testing
 
-Tests use the built-in `node:test` runner and spin up an in-memory Express app with a temporary SQLite database, so they don't touch your real `data/` directory.
+Tests use the built-in `node:test` runner. Each test file spins up an isolated PostgreSQL schema (dropped on teardown), so tests never touch a real database you care about. They connect to `DATABASE_URL` or default to `postgres://fluorite:fluorite@localhost:5432/fluorite`.
 
 Run all tests:
 
@@ -71,7 +71,7 @@ Run a single test file:
 node --test test/auth.test.js
 ```
 
-Write tests against the helpers in `test/helpers.js` — `createTestEnv()`, `request()`, `signup()`, and `login()` cover the common setup. The `fixtures/` directory holds sample compiled extensions for publish tests.
+Write tests against the helpers in `test/helpers.js` — `createTestEnv()` (async, `await env.cleanup()` in teardown), `request()`, `signup()`, and `login()` cover the common setup. The `fixtures/` directory holds sample compiled extensions for publish tests.
 
 ## Code Style
 

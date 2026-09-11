@@ -1,12 +1,8 @@
-import {
-  mkdtempSync,
-  rmSync,
-  readFileSync,
-  mkdirSync,
-  writeFileSync,
-} from "node:fs";
+import { randomUUID } from "node:crypto";
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import postgres from "postgres";
 import { loadConfig, setConfig, setDeployment } from "../src/config.js";
 import { openDb, migrate, prepare, getStmt } from "../src/db.js";
 import { createApp } from "../src/app.js";
@@ -14,7 +10,35 @@ import { setLevel } from "../src/logger.js";
 import { clearRateLimits, hashPassword, nowIso } from "../src/auth.js";
 import { loadManifest } from "../src/terms.js";
 
-export function createTestEnv(deploymentOverrides = {}, configOverrides = {}) {
+export const TEST_DATABASE_URL =
+  process.env.DATABASE_URL ||
+  "postgres://fluorite:fluorite@localhost:5432/fluorite";
+
+export async function openTestDb() {
+  const schema = `test_${randomUUID().replace(/-/g, "")}`;
+  const admin = postgres(TEST_DATABASE_URL, { max: 1 });
+  await admin.unsafe(`CREATE SCHEMA "${schema}"`);
+  await admin.end();
+  const db = openDb({
+    connectionString: TEST_DATABASE_URL,
+    search_path: schema,
+  });
+  return {
+    db,
+    schema,
+    async cleanup() {
+      await db.end();
+      const admin = postgres(TEST_DATABASE_URL, { max: 1, onnotice: () => {} });
+      await admin.unsafe(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+      await admin.end();
+    },
+  };
+}
+
+export async function createTestEnv(
+  deploymentOverrides = {},
+  configOverrides = {},
+) {
   clearRateLimits();
   const dataDir = mkdtempSync(join(tmpdir(), "fluorite-test-"));
   const termsOverride = configOverrides.terms || {};
@@ -38,14 +62,20 @@ export function createTestEnv(deploymentOverrides = {}, configOverrides = {}) {
   writeFileSync(join(termsDir, "tos.md"), "# Test Terms of Service", "utf8");
   writeFileSync(join(termsDir, "privacy.md"), "# Test Privacy Policy", "utf8");
 
-  const dbPath = join(dataDir, "registry.sqlite");
-  const db = openDb(dbPath);
-  migrate(db);
+  const { db, schema, cleanup: dropSchema } = await openTestDb();
+  await migrate(db);
   prepare(db);
 
   const deployment = {
     server: { port: 0, publicBaseUrl: "http://localhost", requireHttps: false },
     storage: { dataDir },
+    database: {
+      host: "localhost",
+      port: 5432,
+      database: "fluorite",
+      user: "fluorite",
+      password: "",
+    },
     admin: { firstUserBecomesAdmin: true, bootstrapAccount: null },
     ...deploymentOverrides,
   };
@@ -53,18 +83,20 @@ export function createTestEnv(deploymentOverrides = {}, configOverrides = {}) {
 
   if (deployment.admin.bootstrapAccount) {
     const bootstrap = deployment.admin.bootstrapAccount;
-    if (!getStmt("getUserByNamespace").get(bootstrap.namespace)) {
+    if (!(await getStmt("getUserByNamespace").get(bootstrap.namespace))) {
       const hash = hashPassword(bootstrap.password);
-      getStmt("createUser").run(
+      await getStmt("createUser").get(
         bootstrap.namespace,
         bootstrap.displayName || "Administrator",
         hash,
         "admin",
         1,
       );
-      const created = getStmt("getUserByNamespace").get(bootstrap.namespace);
+      const created = await getStmt("getUserByNamespace").get(
+        bootstrap.namespace,
+      );
       const { tosVersion, privacyVersion } = loadManifest(config.terms.dir);
-      getStmt("updateUserTermsAcceptance").run(
+      await getStmt("updateUserTermsAcceptance").run(
         nowIso(),
         tosVersion,
         nowIso(),
@@ -79,11 +111,12 @@ export function createTestEnv(deploymentOverrides = {}, configOverrides = {}) {
   return {
     app,
     db,
+    schema,
     dataDir,
     config,
     deployment,
-    cleanup() {
-      db.close();
+    async cleanup() {
+      await dropSchema();
       rmSync(dataDir, { recursive: true, force: true });
     },
   };
@@ -167,5 +200,3 @@ export function login(app, namespace = "testuser", password = "testpass123") {
 export function authHeaders(token) {
   return { Authorization: `Bearer ${token}` };
 }
-
-export { readFileSync, join };

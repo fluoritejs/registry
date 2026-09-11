@@ -40,7 +40,7 @@ function webhookJson(wh) {
   };
 }
 
-router.get("/", (req, res) => {
+router.get("/", async (req, res) => {
   if (!req.auth || req.auth.user.type !== "admin") {
     return res
       .status(403)
@@ -52,11 +52,11 @@ router.get("/", (req, res) => {
         },
       });
   }
-  const webhooks = getStmt("listWebhooks").all();
+  const webhooks = await getStmt("listWebhooks").all();
   res.json(webhooks.map(webhookJson));
 });
 
-router.post("/", (req, res) => {
+router.post("/", async (req, res) => {
   if (!req.auth || req.auth.user.type !== "admin") {
     return res
       .status(403)
@@ -122,7 +122,7 @@ router.post("/", (req, res) => {
   const encryptedSecret = encryptSecret(secret);
   const createdAt = nowIso();
 
-  getStmt("createWebhook").run(
+  await getStmt("createWebhook").run(
     id,
     url,
     JSON.stringify(events),
@@ -136,7 +136,7 @@ router.post("/", (req, res) => {
   res.status(201).json({ id, url, events, enabled: true, createdAt, secret });
 });
 
-router.patch("/:id", (req, res) => {
+router.patch("/:id", async (req, res) => {
   if (!req.auth || req.auth.user.type !== "admin") {
     return res
       .status(403)
@@ -148,7 +148,7 @@ router.patch("/:id", (req, res) => {
         },
       });
   }
-  const existing = getStmt("getWebhook").get(req.params.id);
+  const existing = await getStmt("getWebhook").get(req.params.id);
   if (!existing) {
     return res
       .status(404)
@@ -205,13 +205,18 @@ router.patch("/:id", (req, res) => {
   const newEnabled =
     enabled !== undefined ? (enabled ? 1 : 0) : existing.enabled;
 
-  getStmt("updateWebhook").run(newUrl, newEvents, newEnabled, req.params.id);
+  await getStmt("updateWebhook").run(
+    newUrl,
+    newEvents,
+    newEnabled,
+    req.params.id,
+  );
 
-  const updated = getStmt("getWebhook").get(req.params.id);
+  const updated = await getStmt("getWebhook").get(req.params.id);
   res.json(webhookJson(updated));
 });
 
-router.delete("/:id", (req, res) => {
+router.delete("/:id", async (req, res) => {
   if (!req.auth || req.auth.user.type !== "admin") {
     return res
       .status(403)
@@ -223,7 +228,7 @@ router.delete("/:id", (req, res) => {
         },
       });
   }
-  const existing = getStmt("getWebhook").get(req.params.id);
+  const existing = await getStmt("getWebhook").get(req.params.id);
   if (!existing) {
     return res
       .status(404)
@@ -235,7 +240,7 @@ router.delete("/:id", (req, res) => {
         },
       });
   }
-  getStmt("deleteWebhook").run(req.params.id);
+  await getStmt("deleteWebhook").run(req.params.id);
   log.info(`Webhook deleted: ${req.params.id}`);
   res.status(204).end();
 });

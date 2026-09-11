@@ -7,7 +7,28 @@ services:
       - registry-data:/app/data
       - ./deployment.yaml:/app/deployment.yaml:ro
       - ./config.yaml:/app/config.yaml:ro
+    environment:
+      FLUORITE_DATABASE_URL: postgres://fluorite:fluorite@postgres:5432/fluorite
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: fluorite
+      POSTGRES_PASSWORD: fluorite
+      POSTGRES_DB: fluorite
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fluorite"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     restart: unless-stopped
 
 volumes:
   registry-data:
+  postgres-data:

@@ -43,7 +43,7 @@
 
 **Operations**
 
-- Single-file SQLite storage (WAL mode) with blob files written atomically (temp-file-then-rename) and automatic crash recovery on startup
+- PostgreSQL-backed metadata with blob files written atomically (temp-file-then-rename) and automatic crash recovery on startup
 - Containerized deployment via Docker/Podman (Compose), graceful shutdown on `SIGTERM`/`SIGINT`, and live config reload on `SIGHUP`
 
 ## Built With
@@ -57,6 +57,7 @@
 
 - Node.js (22.13.0 through 22.x, or 24 and newer)
 - npm
+- A running PostgreSQL server
 
 ### Installation
 

@@ -34,7 +34,7 @@ function notificationJson(n) {
   };
 }
 
-router.get("/", (req, res) => {
+router.get("/", async (req, res) => {
   const config = getConfig();
   const maxPageSize = config.listings.maxPageSize;
   const defaultSize = config.listings.defaultPageSize;
@@ -44,19 +44,19 @@ router.get("/", (req, res) => {
 
   let notifications;
   if (status === "read") {
-    notifications = getStmt("listNotificationsRead").all(
+    notifications = await getStmt("listNotificationsRead").all(
       req.auth.user.id,
       limit + 1,
       offset,
     );
   } else if (status === "unread") {
-    notifications = getStmt("listNotificationsUnread").all(
+    notifications = await getStmt("listNotificationsUnread").all(
       req.auth.user.id,
       limit + 1,
       offset,
     );
   } else {
-    notifications = getStmt("listNotifications").all(
+    notifications = await getStmt("listNotifications").all(
       req.auth.user.id,
       limit + 1,
       offset,
@@ -68,16 +68,16 @@ router.get("/", (req, res) => {
     notifications.length > limit ? encodeCursor(offset + limit) : null;
 
   if (config.notifications?.includeUnreadCountHeader !== false) {
-    const unread = getStmt("countUnreadNotifications").get(
+    const unread = await getStmt("countUnreadNotifications").get(
       req.auth.user.id,
-    ).count;
-    res.set("X-Unread-Notifications", String(unread));
+    );
+    res.set("X-Unread-Notifications", String(unread.count));
   }
 
   res.json({ notifications: sliced.map(notificationJson), nextCursor });
 });
 
-router.delete("/", (req, res) => {
+router.delete("/", async (req, res) => {
   const status = req.query.status;
   if (status !== "read") {
     return res
@@ -90,12 +90,12 @@ router.delete("/", (req, res) => {
         },
       });
   }
-  getStmt("deleteReadNotifications").run(req.auth.user.id);
+  await getStmt("deleteReadNotifications").run(req.auth.user.id);
   res.status(204).end();
 });
 
-router.patch("/:id", (req, res) => {
-  const n = getStmt("getNotification").get(Number(req.params.id));
+router.patch("/:id", async (req, res) => {
+  const n = await getStmt("getNotification").get(Number(req.params.id));
   if (!n || n.user_id !== req.auth.user.id) {
     return res
       .status(404)
@@ -107,12 +107,12 @@ router.patch("/:id", (req, res) => {
         },
       });
   }
-  const updated = getStmt("markNotificationRead").get(nowIso(), n.id);
+  const updated = await getStmt("markNotificationRead").get(nowIso(), n.id);
   res.json(notificationJson(updated));
 });
 
-router.delete("/:id", (req, res) => {
-  const n = getStmt("getNotification").get(Number(req.params.id));
+router.delete("/:id", async (req, res) => {
+  const n = await getStmt("getNotification").get(Number(req.params.id));
   if (!n || n.user_id !== req.auth.user.id) {
     return res
       .status(404)
@@ -124,7 +124,7 @@ router.delete("/:id", (req, res) => {
         },
       });
   }
-  getStmt("deleteNotification").run(n.id);
+  await getStmt("deleteNotification").run(n.id);
   res.status(204).end();
 });
 

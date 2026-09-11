@@ -7,7 +7,7 @@ describe("Users", () => {
   let env, adminToken;
 
   before(async () => {
-    env = createTestEnv();
+    env = await createTestEnv();
     const res = await signup(env.app, "admin", "password123");
     adminToken = res.body.token;
     await signup(env.app, "target", "password123");
@@ -90,7 +90,7 @@ describe("Users", () => {
   it("rolls back password and tokens when credential revocation fails", async () => {
     const signupRes = await signup(env.app, "txuser", "oldpass123");
     const txToken = signupRes.body.token;
-    const before = getStmt("getUserByNamespace").get("txuser");
+    const before = await getStmt("getUserByNamespace").get("txuser");
 
     const stmt = getStmt("deleteAllAuthTokens");
     const originalRun = stmt.run;
@@ -111,7 +111,7 @@ describe("Users", () => {
     }
     assert.strictEqual(res.status, 500);
 
-    const after = getStmt("getUserByNamespace").get("txuser");
+    const after = await getStmt("getUserByNamespace").get("txuser");
     assert.strictEqual(
       after.password_hash,
       before.password_hash,
