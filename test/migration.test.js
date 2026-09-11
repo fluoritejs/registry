@@ -108,6 +108,43 @@ describe("Migration & recovery", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
+  it("promotes pending_delete versions that still have their blob", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "recovery-"));
+    const { db, cleanup } = await openTestDb();
+    await migrate(db);
+    prepare(db);
+
+    const user = await getStmt("createUser").get(
+      "testuser3",
+      "Test3",
+      "hash",
+      "normal",
+      1,
+    );
+    const bp = blobPath(dir, "testuser3", "ext", "3.0.0");
+    mkdirSync(join(dir, "blobs", "testuser3", "ext"), { recursive: true });
+    writeFileSync(bp, "// extension code");
+
+    await getStmt("createVersion").run(
+      user.id,
+      "ext",
+      "3.0.0",
+      "pending_delete",
+      "{}",
+      bp,
+      new Date().toISOString(),
+      null,
+    );
+
+    await reconcileStaging(db, dir);
+
+    const v = await getStmt("getVersion").get("testuser3", "ext", "3.0.0");
+    assert.strictEqual(v, undefined);
+    assert.ok(!existsSync(bp));
+    await cleanup();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
   it("cleans up orphaned temp blob files", () => {
     const dir = mkdtempSync(join(tmpdir(), "cleanup-"));
     const blobsDir = join(dir, "blobs");
