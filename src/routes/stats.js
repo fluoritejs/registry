@@ -5,6 +5,7 @@ const router = Router();
 
 router.get("/", (req, res) => {
   const stats = getStmt("stats").get();
+  res.set("Cache-Control", "public, max-age=60");
   res.json({
     published: stats.published,
     pending: stats.pending,

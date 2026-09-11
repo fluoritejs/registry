@@ -64,6 +64,8 @@ export function migrate(db) {
     CREATE UNIQUE INDEX IF NOT EXISTS versions_one_pending_per_owner_package
       ON versions(owner_id, package_id) WHERE status IN ('staging', 'pending');
 
+    CREATE INDEX IF NOT EXISTS versions_status ON versions(status);
+
     CREATE TABLE IF NOT EXISTS notifications (
       id INTEGER PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
