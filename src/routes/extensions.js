@@ -540,13 +540,8 @@ router.patch(
     if (newStatus === "approved") {
       const user = getStmt("getUserById").get(v.owner_id);
       if (user && !user.trusted) {
-        const hasApproved = getStmt("listVersionsByOwner")
-          .all(namespace, id)
-          .some((vers) => vers.status === "published" && vers.id !== v.id);
-        if (!hasApproved) {
-          getStmt("updateUserTrust").run(1, namespace);
-          log.info(`User ${namespace} is now trusted (first approval)`);
-        }
+        getStmt("updateUserTrust").run(1, namespace);
+        log.info(`User ${namespace} is now trusted (first approval)`);
       }
     }
 

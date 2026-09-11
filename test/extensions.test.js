@@ -508,4 +508,47 @@ describe("Extensions - publish flow", () => {
     );
     assert.strictEqual(res.status, 204);
   });
+
+  it("trust restored on approval even with existing published versions", async () => {
+    await request(env.app, "PATCH", "/v0/users/regularuser/trust", {
+      body: JSON.stringify({ trusted: false }),
+      headers: {
+        ...authHeaders(adminToken),
+        "Content-Type": "application/json",
+      },
+    });
+
+    const checkBefore = await request(env.app, "GET", "/v0/users/regularuser");
+    assert.strictEqual(checkBefore.body.trusted, false);
+
+    const src1 = `var Fluorite = { manifest: { id: 'trust-test', name: 'Trust Test', version: '1.0.0', license: 'MIT', description: 'd' } };`;
+    await request(
+      env.app,
+      "POST",
+      "/v0/extensions/@regularuser/trust-test/versions",
+      {
+        body: src1,
+        headers: {
+          ...authHeaders(untrustedToken),
+          "Content-Type": "application/javascript",
+        },
+      },
+    );
+
+    await request(
+      env.app,
+      "PATCH",
+      "/v0/extensions/@regularuser/trust-test/versions/1.0.0",
+      {
+        body: JSON.stringify({ status: "approved" }),
+        headers: {
+          ...authHeaders(adminToken),
+          "Content-Type": "application/json",
+        },
+      },
+    );
+
+    const checkAfter = await request(env.app, "GET", "/v0/users/regularuser");
+    assert.strictEqual(checkAfter.body.trusted, true);
+  });
 });
