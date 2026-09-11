@@ -221,11 +221,13 @@ router.delete("/:namespace/:id", (req, res) => {
   }
   if (pending) {
     log.warn(`Extension delete left pending blobs: ${namespace}/${id}`);
-    return res.status(202).json({
-      pending: true,
-      message:
-        "One or more blobs could not be removed; the delete remains pending for retry.",
-    });
+    return res
+      .status(202)
+      .json({
+        pending: true,
+        message:
+          "One or more blobs could not be removed; the delete remains pending for retry.",
+      });
   }
   getStmt("deleteVersionsByOwnerAndPackage").run(user.id, id);
   log.info(`Extension deleted: ${namespace}/${id}`);
@@ -675,11 +677,13 @@ router.delete("/:namespace/:id/versions/:version", (req, res) => {
 
   if (!finalizeBlobDelete(v)) {
     log.warn(`Version delete left blob pending: ${namespace}/${id}@${version}`);
-    return res.status(202).json({
-      pending: true,
-      message:
-        "Blob could not be removed; deletion remains pending for retry.",
-    });
+    return res
+      .status(202)
+      .json({
+        pending: true,
+        message:
+          "Blob could not be removed; deletion remains pending for retry.",
+      });
   }
   log.info(`Version deleted: ${namespace}/${id}@${version}`);
   res.status(204).end();

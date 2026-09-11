@@ -145,10 +145,7 @@ function handleAdminUpdate(res, name, label, req) {
       });
   }
   log.info(`Updated ${label} to version ${trimmed}`);
-  res.json({
-    version: trimmed,
-    path: contentPath(dir, name, trimmed),
-  });
+  res.json({ version: trimmed, path: contentPath(dir, name, trimmed) });
 }
 
 router.patch("/admin/terms", adminMiddleware, (req, res) =>

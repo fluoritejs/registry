@@ -122,10 +122,7 @@ import crypto from "node:crypto";
 function verify(body, secretHex, signatureHeader) {
   const expected =
     "sha256=" +
-    crypto
-      .createHmac("sha256", secretHex)
-      .update(body)
-      .digest("hex");
+    crypto.createHmac("sha256", secretHex).update(body).digest("hex");
   const expectedBuf = Buffer.from(expected);
   const signatureBuf = Buffer.from(signatureHeader);
   if (expectedBuf.length !== signatureBuf.length) return false;

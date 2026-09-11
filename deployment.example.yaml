@@ -20,5 +20,5 @@ admin:
   # boot, then discarded.
   bootstrapAccount:
     namespace: admin
-    password: change-me-immediately   # operator generated, hashed on first boot, then discarded
+    password: change-me-immediately # operator generated, hashed on first boot, then discarded
     displayName: Administrator
