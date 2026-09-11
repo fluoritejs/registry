@@ -217,8 +217,22 @@ router.delete("/:namespace", (req, res) => {
     try {
       if (v.blob_path && existsSync(v.blob_path)) unlinkSync(v.blob_path);
     } catch (err) {
-      log.warn(`Failed to delete blob ${v.blob_path}: ${err.message}`);
+      log.error(
+        `Failed to delete blob ${v.blob_path} for user ${target.namespace}: ${err.message}`,
+      );
+      return res
+        .status(500)
+        .json({
+          error: {
+            code: "INTERNAL_ERROR",
+            message: "Failed to delete account data.",
+            field: null,
+          },
+        });
     }
+  }
+  for (const v of versions) {
+    getStmt("deleteVersion").run(v.id);
   }
   getStmt("deleteAllAuthTokens").run(target.id);
   getStmt("deleteAllAutomationTokens").run(target.id);
