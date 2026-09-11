@@ -565,7 +565,7 @@ router.patch(
   (req, res) => {
     const namespace = parseNamespace(req.params.namespace);
     const { id, version } = req.params;
-    const { status: newStatus, reason } = req.body;
+    const { status: newStatus, reason } = req.body ?? {};
 
     if (!newStatus || !["approved", "rejected"].includes(newStatus)) {
       return res
@@ -718,7 +718,7 @@ router.patch("/:namespace/:id/versions/:version/yank", (req, res) => {
   }
   const namespace = parseNamespace(req.params.namespace);
   const { id, version } = req.params;
-  const { yanked, reason } = req.body;
+  const { yanked, reason } = req.body ?? {};
 
   if (typeof yanked !== "boolean") {
     return res
