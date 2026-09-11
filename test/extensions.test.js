@@ -394,6 +394,52 @@ describe("Extensions - publish flow", () => {
     assert.strictEqual(unyankRes.body.yanked, false);
   });
 
+  it("yanked versions hidden from default view", async () => {
+    const source3 = `var Fluorite = { manifest: { id: 'hello-world-yanked', name: 'Yanked Test', version: '1.0.0', license: 'MIT', description: 'd' } };`;
+    await request(
+      env.app,
+      "POST",
+      "/v0/extensions/@regularuser/hello-world-yanked/versions",
+      {
+        body: source3,
+        headers: {
+          ...authHeaders(untrustedToken),
+          "Content-Type": "application/javascript",
+        },
+      },
+    );
+
+    await request(
+      env.app,
+      "PATCH",
+      "/v0/extensions/@regularuser/hello-world-yanked/versions/1.0.0/yank",
+      {
+        body: JSON.stringify({ yanked: true }),
+        headers: {
+          ...authHeaders(untrustedToken),
+          "Content-Type": "application/json",
+        },
+      },
+    );
+
+    const defaultRes = await request(
+      env.app,
+      "GET",
+      "/v0/extensions/@regularuser/hello-world-yanked",
+    );
+    assert.strictEqual(defaultRes.status, 404);
+
+    const allRes = await request(
+      env.app,
+      "GET",
+      "/v0/extensions/@regularuser/hello-world-yanked?status=all",
+      { headers: authHeaders(untrustedToken) },
+    );
+    assert.strictEqual(allRes.status, 200);
+    assert.strictEqual(allRes.body.versions.length, 1);
+    assert.strictEqual(allRes.body.versions[0].yanked, true);
+  });
+
   it("delete version", async () => {
     const res = await request(
       env.app,

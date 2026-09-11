@@ -281,7 +281,7 @@ export function prepare(db) {
   s(
     "listVersionsByExtension",
     `SELECT v.*, u.namespace FROM versions v JOIN users u ON v.owner_id = u.id
-    WHERE u.namespace = ? AND v.package_id = ? AND v.status = 'published' ORDER BY v.id DESC`,
+    WHERE u.namespace = ? AND v.package_id = ? AND v.status = 'published' AND v.yanked = 0 ORDER BY v.id DESC`,
   );
   s(
     "listVersionsWorklist",
