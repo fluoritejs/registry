@@ -177,16 +177,16 @@ describe("Extensions - trusted publish", () => {
     assert.ok(jsRes.body.includes("Scratch.extensions.register"));
   });
 
-  it("latest version resolves by semver, not publish order", async () => {
-    const v1 = `var Fluorite = { manifest: { id: 'semver-pkg', name: 'Semver Test', version: '1.0.0', license: 'MIT', description: 'd' } };`;
-    const v2 = `var Fluorite = { manifest: { id: 'semver-pkg', name: 'Semver Test', version: '2.0.0', license: 'MIT', description: 'd' } };`;
+  it("latest version resolves by semver across yank/un-yank, not publish order", async () => {
+    const makeSource = (version) =>
+      `var Fluorite = { manifest: { id: 'semver-pkg', name: 'Semver Test', version: '${version}', license: 'MIT', description: 'd' } };`;
 
     const res1 = await request(
       env.app,
       "POST",
       "/v0/extensions/@trustedowner/semver-pkg/versions",
       {
-        body: v1,
+        body: makeSource("1.0.0"),
         headers: {
           ...authHeaders(trustedToken),
           "Content-Type": "application/javascript",
@@ -194,13 +194,14 @@ describe("Extensions - trusted publish", () => {
       },
     );
     assert.strictEqual(res1.status, 201);
+    assert.strictEqual(res1.body.status, "published");
 
     const res2 = await request(
       env.app,
       "POST",
       "/v0/extensions/@trustedowner/semver-pkg/versions",
       {
-        body: v2,
+        body: makeSource("2.0.0"),
         headers: {
           ...authHeaders(trustedToken),
           "Content-Type": "application/javascript",
@@ -208,6 +209,52 @@ describe("Extensions - trusted publish", () => {
       },
     );
     assert.strictEqual(res2.status, 201);
+    assert.strictEqual(res2.body.status, "published");
+
+    const yankRes = await request(
+      env.app,
+      "PATCH",
+      "/v0/extensions/@trustedowner/semver-pkg/versions/2.0.0/yank",
+      {
+        body: JSON.stringify({ yanked: true }),
+        headers: {
+          ...authHeaders(trustedToken),
+          "Content-Type": "application/json",
+        },
+      },
+    );
+    assert.strictEqual(yankRes.status, 200);
+    assert.strictEqual(yankRes.body.yanked, true);
+
+    const res15 = await request(
+      env.app,
+      "POST",
+      "/v0/extensions/@trustedowner/semver-pkg/versions",
+      {
+        body: makeSource("1.5.0"),
+        headers: {
+          ...authHeaders(trustedToken),
+          "Content-Type": "application/javascript",
+        },
+      },
+    );
+    assert.strictEqual(res15.status, 201);
+    assert.strictEqual(res15.body.status, "published");
+
+    const unyankRes = await request(
+      env.app,
+      "PATCH",
+      "/v0/extensions/@trustedowner/semver-pkg/versions/2.0.0/yank",
+      {
+        body: JSON.stringify({ yanked: false }),
+        headers: {
+          ...authHeaders(trustedToken),
+          "Content-Type": "application/json",
+        },
+      },
+    );
+    assert.strictEqual(unyankRes.status, 200);
+    assert.strictEqual(unyankRes.body.yanked, false);
 
     const latestRes = await request(
       env.app,
@@ -409,6 +456,57 @@ describe("Extensions - publish flow", () => {
     );
     assert.strictEqual(res.status, 200);
     assert.ok(typeof res.body === "string");
+  });
+
+  it("yanked published version can still be fetched directly (not 404)", async () => {
+    const source = `var Fluorite = { manifest: { id: 'yanked-fetch', name: 'Yanked Fetch', version: '1.0.0', license: 'MIT', description: 'd' } };`;
+    const pubRes = await request(
+      env.app,
+      "POST",
+      "/v0/extensions/@regularuser/yanked-fetch/versions",
+      {
+        body: source,
+        headers: {
+          ...authHeaders(untrustedToken),
+          "Content-Type": "application/javascript",
+        },
+      },
+    );
+    assert.strictEqual(pubRes.status, 201);
+    assert.strictEqual(pubRes.body.status, "published");
+
+    const yankRes = await request(
+      env.app,
+      "PATCH",
+      "/v0/extensions/@regularuser/yanked-fetch/versions/1.0.0/yank",
+      {
+        body: JSON.stringify({ yanked: true }),
+        headers: {
+          ...authHeaders(untrustedToken),
+          "Content-Type": "application/json",
+        },
+      },
+    );
+    assert.strictEqual(yankRes.status, 200);
+    assert.strictEqual(yankRes.body.yanked, true);
+
+    const jsRes = await request(
+      env.app,
+      "GET",
+      "/v0/extensions/@regularuser/yanked-fetch/versions/1.0.0",
+      { headers: { Accept: "application/javascript" } },
+    );
+    assert.strictEqual(jsRes.status, 200);
+    assert.ok(typeof jsRes.body === "string");
+    assert.ok(jsRes.body.includes("yanked-fetch"));
+
+    const metaRes = await request(
+      env.app,
+      "GET",
+      "/v0/extensions/@regularuser/yanked-fetch/versions/1.0.0",
+    );
+    assert.strictEqual(metaRes.status, 200);
+    assert.strictEqual(metaRes.body.yanked, true);
   });
 
   it("yank and un-yank", async () => {
