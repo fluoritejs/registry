@@ -210,22 +210,41 @@ describe("Auth", () => {
         headers: authHeaders(token),
       });
       assert.strictEqual(res.status, 204);
+
+      const check = await request(env.app, "GET", "/v0/auth/sessions", {
+        headers: authHeaders(token),
+      });
+      assert.strictEqual(check.status, 401);
     });
 
     it("revokes a specific session by numeric id", async () => {
-      const loginRes = await login(env.app, "sessionuser", "password123");
-      const newToken = loginRes.body.token;
+      const first = await login(env.app, "sessionuser", "password123");
+      const second = await login(env.app, "sessionuser", "password123");
+      const firstToken = first.body.token;
+      const secondToken = second.body.token;
       const listRes = await request(env.app, "GET", "/v0/auth/sessions", {
-        headers: authHeaders(newToken),
+        headers: authHeaders(firstToken),
       });
       const sessionId = listRes.body[0].id;
       const delRes = await request(
         env.app,
         "DELETE",
         `/v0/auth/sessions/${sessionId}`,
-        { headers: authHeaders(newToken) },
+        { headers: authHeaders(firstToken) },
       );
       assert.strictEqual(delRes.status, 204);
+
+      const firstCheck = await request(env.app, "GET", "/v0/auth/sessions", {
+        headers: authHeaders(firstToken),
+      });
+      const secondCheck = await request(env.app, "GET", "/v0/auth/sessions", {
+        headers: authHeaders(secondToken),
+      });
+      const checks = [firstCheck, secondCheck];
+      assert.strictEqual(checks.filter((c) => c.status === 401).length, 1);
+      const survivor = checks.find((c) => c.status === 200);
+      assert.ok(survivor);
+      assert.ok(!survivor.body.some((s) => s.id === sessionId));
     });
   });
 
