@@ -196,7 +196,7 @@ Extension blobs live under `<dataDir>/blobs/`. Back up the entire `blobs/` direc
 
 ### Crash Recovery
 
-The server handles two recovery scenarios on startup:
+The server handles three recovery scenarios on startup:
 
 1. **Staging versions with blobs on disk**: promoted to `pending` status automatically
 2. **Staging versions with missing blobs**: deleted from the database
