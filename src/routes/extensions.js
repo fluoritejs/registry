@@ -10,7 +10,7 @@ import {
   existsSync,
 } from "node:fs";
 import { dirname } from "node:path";
-import { getStmt, blobPath } from "../db.js";
+import { getStmt, blobPath, runTransaction } from "../db.js";
 import { extractManifest } from "../manifest.js";
 import {
   nowIso,
@@ -100,19 +100,21 @@ router.get("/", (req, res) => {
   const offset = parseCursor(req.query);
   const q = req.query.q;
 
-  let allRows;
-  if (q) {
-    allRows = getStmt("searchExtensions").all(q, q, q, q);
-  } else {
-    allRows = getStmt("listExtensions").all();
+  const identities = q
+    ? getStmt("searchExtensionIdentities").all(q, q, q, q, limit, offset)
+    : getStmt("listExtensionIdentities").all(limit, offset);
+
+  const allRows = [];
+  for (const { namespace, package_id } of identities) {
+    const rows = getStmt("listVersionsByExtension").all(namespace, package_id);
+    allRows.push(...rows);
   }
 
   const extensions = aggregateExtensions(allRows);
-  const paged = extensions.slice(offset, offset + limit);
   const nextCursor =
-    extensions.length > offset + limit ? encodeCursor(offset + limit) : null;
+    identities.length === limit ? encodeCursor(offset + limit) : null;
 
-  res.json({ extensions: paged, nextCursor });
+  res.json({ extensions, nextCursor });
 });
 
 router.get("/:namespace/:id", (req, res) => {
@@ -342,31 +344,53 @@ router.post(
     const dir = dirname(blobPath(dataDir, namespace, id, manifest.version));
     mkdirSync(dir, { recursive: true });
 
-    const finalPath = blobPath(dataDir, namespace, id, manifest.version);
-    const tmpPath = finalPath.replace(
+    const stagingPath = blobPath(
+      dataDir,
+      namespace,
+      id,
+      manifest.version,
+    ).replace(
       /\.js$/,
-      `.tmp-${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
+      `.staging-${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
     );
+    const finalPath = blobPath(dataDir, namespace, id, manifest.version);
 
     const trusted =
       !!user.trusted || !getConfig().publishing.firstPublishRequiresReview;
     const status = trusted ? "published" : "pending";
     const publishedAt = trusted ? nowIso() : null;
 
+    let versionId;
     try {
-      writeFileSync(tmpPath, source, "utf8");
-      renameSync(tmpPath, finalPath);
+      runTransaction(() => {
+        getStmt("createVersion").run(
+          user.id,
+          id,
+          manifest.version,
+          "staging",
+          JSON.stringify(manifest),
+          stagingPath,
+          nowIso(),
+          null,
+        );
+        versionId = getStmt("getVersionByOwnerPackageVersion").get(
+          user.id,
+          id,
+          manifest.version,
+        ).id;
+      });
 
-      getStmt("createVersion").run(
-        user.id,
-        id,
-        manifest.version,
-        status,
-        JSON.stringify(manifest),
-        finalPath,
-        nowIso(),
-        publishedAt,
-      );
+      writeFileSync(stagingPath, source, "utf8");
+      renameSync(stagingPath, finalPath);
+
+      runTransaction(() => {
+        getStmt("finalizeVersion").run(
+          status,
+          publishedAt,
+          finalPath,
+          versionId,
+        );
+      });
 
       const version = getStmt("getVersion").get(
         namespace,
@@ -392,7 +416,7 @@ router.post(
         /* ignore */
       }
       try {
-        if (existsSync(tmpPath)) unlinkSync(tmpPath);
+        if (existsSync(stagingPath)) unlinkSync(stagingPath);
       } catch {
         /* ignore */
       }

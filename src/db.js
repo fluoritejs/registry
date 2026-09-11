@@ -239,6 +239,10 @@ export function prepare(db) {
     "SELECT v.*, u.namespace FROM versions v JOIN users u ON v.owner_id = u.id WHERE v.id = ?",
   );
   s(
+    "getVersionByOwnerPackageVersion",
+    "SELECT * FROM versions WHERE owner_id = ? AND package_id = ? AND version = ?",
+  );
+  s(
     "resolveLatestVersion",
     `SELECT v.*, u.namespace FROM versions v JOIN users u ON v.owner_id = u.id
     WHERE u.namespace = ? AND v.package_id = ? AND v.status = 'published' AND v.yanked = 0`,
@@ -246,6 +250,10 @@ export function prepare(db) {
   s(
     "updateVersionStatus",
     "UPDATE versions SET status = ?, published_at = ? WHERE id = ? RETURNING *",
+  );
+  s(
+    "finalizeVersion",
+    "UPDATE versions SET status = ?, published_at = ?, blob_path = ? WHERE id = ? RETURNING *",
   );
   s(
     "updateVersionYank",
@@ -327,6 +335,28 @@ export function prepare(db) {
   );
 
   s(
+    "listExtensionIdentities",
+    `SELECT DISTINCT u.namespace, v.package_id FROM versions v
+    JOIN users u ON v.owner_id = u.id
+    WHERE v.status = 'published' AND v.yanked = 0
+    ORDER BY v.id DESC
+    LIMIT ? OFFSET ?`,
+  );
+
+  s(
+    "searchExtensionIdentities",
+    `SELECT DISTINCT u.namespace, v.package_id FROM versions v
+    JOIN users u ON v.owner_id = u.id
+    WHERE v.status = 'published' AND v.yanked = 0
+    AND (u.namespace LIKE '%' || ? || '%'
+      OR v.package_id LIKE '%' || ? || '%'
+      OR json_extract(v.meta_json, '$.name') LIKE '%' || ? || '%'
+      OR json_extract(v.meta_json, '$.description') LIKE '%' || ? || '%')
+    ORDER BY v.id DESC
+    LIMIT ? OFFSET ?`,
+  );
+
+  s(
     "extensionExists",
     `SELECT 1 FROM versions v JOIN users u ON v.owner_id = u.id
     WHERE u.namespace = ? AND v.package_id = ? AND v.status = 'published' LIMIT 1`,
@@ -395,6 +425,10 @@ export function prepare(db) {
 
 export function getStmt(name) {
   return stmts[name];
+}
+
+export function runTransaction(fn) {
+  dbHandle.transaction(fn)();
 }
 
 export function deleteUserCascade(id) {
