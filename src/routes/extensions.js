@@ -423,24 +423,6 @@ router.post(
         );
       });
       blobOwned = false;
-
-      const version = getStmt("getVersion").get(
-        namespace,
-        id,
-        manifest.version,
-      );
-
-      const event = trusted ? "version.published" : "version.pending";
-      fireWebhooks(event, {
-        extension: { namespace, id },
-        version: { version: manifest.version, status },
-      });
-
-      log.info(
-        `Version published: ${namespace}/${id}@${manifest.version} (status=${status})`,
-      );
-
-      res.status(201).json(versionJson(version));
     } catch (err) {
       if (blobOwned) {
         try {
@@ -462,7 +444,7 @@ router.post(
         }
       }
       log.error(`Publish failed: ${err.message}`);
-      res
+      return res
         .status(500)
         .json({
           error: {
@@ -472,6 +454,26 @@ router.post(
           },
         });
     }
+
+    const version = getStmt("getVersion").get(namespace, id, manifest.version);
+
+    try {
+      const event = trusted ? "version.published" : "version.pending";
+      fireWebhooks(event, {
+        extension: { namespace, id },
+        version: { version: manifest.version, status },
+      });
+
+      log.info(
+        `Version published: ${namespace}/${id}@${manifest.version} (status=${status})`,
+      );
+    } catch (err) {
+      log.error(
+        `Post-publish workflow failed for ${namespace}/${id}@${manifest.version}: ${err.message}`,
+      );
+    }
+
+    res.status(201).json(versionJson(version));
   },
 );
 
