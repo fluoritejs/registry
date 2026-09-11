@@ -85,6 +85,15 @@ function assertSafeVersion(version) {
   }
 }
 
+export class TermsVersionConflictError extends Error {
+  constructor(label, version) {
+    super(
+      `Version ${version} is already published for ${label} with different content; publish a new version instead.`,
+    );
+    this.name = "TermsVersionConflictError";
+  }
+}
+
 export function publishPair(termsDir, name, content, label, version) {
   assertSafeVersion(version);
   mkdirSync(termsDir, { recursive: true });
@@ -94,9 +103,7 @@ export function publishPair(termsDir, name, content, label, version) {
   if (manifest[label] === version) {
     const existing = readContent(termsDir, name, version);
     if (existing !== content) {
-      throw new Error(
-        `Version ${version} is already published for ${label} with different content; publish a new version instead.`,
-      );
+      throw new TermsVersionConflictError(label, version);
     }
   }
   manifest[label] = version;

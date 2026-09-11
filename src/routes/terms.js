@@ -8,6 +8,7 @@ import {
   readContent,
   contentPath,
   publishPair,
+  TermsVersionConflictError,
 } from "../terms.js";
 
 const router = Router();
@@ -137,6 +138,17 @@ function handleAdminUpdate(res, name, label, req) {
   try {
     publishPair(dir, name, content, label, trimmed);
   } catch (err) {
+    if (err instanceof TermsVersionConflictError) {
+      return res
+        .status(409)
+        .json({
+          error: {
+            code: "VERSION_CONFLICT",
+            message: err.message,
+            field: null,
+          },
+        });
+    }
     log.error(`Failed to update ${label}: ${err.message}`);
     return res
       .status(500)
