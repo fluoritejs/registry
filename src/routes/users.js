@@ -113,7 +113,7 @@ router.get("/:namespace", (req, res) => {
 });
 
 router.patch("/:namespace", (req, res) => {
-  if (!req.auth) {
+  if (!req.auth || req.auth.tokenKind !== "session") {
     return res
       .status(401)
       .json({
@@ -182,7 +182,7 @@ router.patch("/:namespace", (req, res) => {
 });
 
 router.delete("/:namespace", (req, res) => {
-  if (!req.auth) {
+  if (!req.auth || req.auth.tokenKind !== "session") {
     return res
       .status(401)
       .json({
