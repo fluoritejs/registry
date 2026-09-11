@@ -486,7 +486,7 @@ export function prepare(db) {
     (SELECT COUNT(*)::int FROM (SELECT DISTINCT owner_id, package_id FROM versions WHERE status = 'published' AND yanked = 0)) as published,
     (SELECT COUNT(*)::int FROM versions WHERE status = 'pending') as pending,
     (SELECT COUNT(DISTINCT owner_id)::int FROM versions WHERE status = 'published' AND yanked = 0) as authors,
-    (SELECT COALESCE(SUM(downloads), 0)::int FROM versions WHERE status = 'published' AND yanked = 0) as totalDownloads`,
+    (SELECT COALESCE(SUM(downloads), 0)::int FROM versions WHERE status = 'published' AND yanked = 0) as "totalDownloads"`,
   );
 
   return stmts;
