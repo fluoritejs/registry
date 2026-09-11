@@ -2,7 +2,11 @@ import { Router } from "express";
 import crypto from "node:crypto";
 import { getStmt } from "../db.js";
 import { nowIso } from "../auth.js";
-import { isSafeWebhookUrl, encryptSecret, getEncryptionKey } from "../webhooks.js";
+import {
+  isSafeWebhookUrl,
+  encryptSecret,
+  getEncryptionKey,
+} from "../webhooks.js";
 import { log } from "../logger.js";
 
 const router = Router();
