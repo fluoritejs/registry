@@ -525,6 +525,8 @@ router.get("/:namespace/:id/versions/:version", (req, res) => {
     getStmt("incrementDownloads").run(v.id);
     const code = readFileSync(v.blob_path, "utf8");
     res.set("Content-Type", "application/javascript");
+    res.set("X-Content-Type-Options", "nosniff");
+    res.set("Content-Disposition", "attachment");
     res.send(code);
   } else {
     res.json(versionJson(v));
