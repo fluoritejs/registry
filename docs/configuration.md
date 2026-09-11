@@ -155,10 +155,10 @@ Package ID pattern: alphanumeric, 1-64 chars, dots/hyphens/underscores allowed b
 
 ### terms
 
-| Key       | Default    | Description                                                                                                  |
-| --------- | ---------- | ------------------------------------------------------------------------------------------------------------ |
-| `dir`     | `./terms`  | Directory with `manifest.yaml` (versions) plus `tos.md` and `privacy.md` (markdown content). Created on write. |
-| `enforce` | `false`    | When `true`, authenticated actions require the user to have accepted the current terms and privacy versions. |
+| Key       | Default   | Description                                                                                                    |
+| --------- | --------- | -------------------------------------------------------------------------------------------------------------- |
+| `dir`     | `./terms` | Directory with `manifest.yaml` (versions) plus `tos.md` and `privacy.md` (markdown content). Created on write. |
+| `enforce` | `false`   | When `true`, authenticated actions require the user to have accepted the current terms and privacy versions.   |
 
 When `enforce` is `true`, users receive `403 TERMS_ACCEPTANCE_REQUIRED` on authenticated endpoints until they call `POST /v0/terms/accept` with the current versions. Automation tokens are exempt. To force re-acceptance, bump the version for a document via `PATCH /v0/admin/terms` or `PATCH /v0/admin/privacy` (which also updates the on-disk content).
 

@@ -819,21 +819,21 @@ All errors follow this shape:
 
 `field` is a string when the error relates to a specific request field, `null` otherwise.
 
-| HTTP Status | Code                     | Meaning                                  |
-| ----------- | ------------------------ | ---------------------------------------- |
-| 400         | `VALIDATION_ERROR`       | Bad request body or params               |
-| 400         | `INVALID_MANIFEST`       | Source has no valid Fluorite manifest    |
-| 400         | `MANIFEST_MISMATCH`      | Manifest ID doesn't match URL            |
-| 400         | `INVALID_TERMS_VERSION`  | Supplied version doesn't match current   |
-| 401         | `UNAUTHORIZED`           | Missing or invalid token                 |
-| 401         | `TOKEN_EXPIRED`          | Session token has expired                |
-| 403         | `FORBIDDEN`              | Insufficient permissions                 |
-| 403         | `TERMS_ACCEPTANCE_REQUIRED` | Terms not accepted                      |
-| 403         | `VERSION_PENDING_REVIEW` | Already have a pending version           |
-| 404         | `NOT_FOUND`              | Resource doesn't exist                   |
-| 404         | `BLOB_MISSING`           | Version exists but compiled file is gone |
-| 404         | `TERMS_NOT_FOUND`        | Terms/privacy document not published     |
-| 409         | `VERSION_EXISTS`         | That version number already exists       |
-| 409         | `NAMESPACE_TAKEN`        | Namespace is already registered          |
-| 429         | `RATE_LIMITED`           | Too many requests                        |
-| 500         | `INTERNAL_ERROR`         | Server-side failure                      |
+| HTTP Status | Code                        | Meaning                                  |
+| ----------- | --------------------------- | ---------------------------------------- |
+| 400         | `VALIDATION_ERROR`          | Bad request body or params               |
+| 400         | `INVALID_MANIFEST`          | Source has no valid Fluorite manifest    |
+| 400         | `MANIFEST_MISMATCH`         | Manifest ID doesn't match URL            |
+| 400         | `INVALID_TERMS_VERSION`     | Supplied version doesn't match current   |
+| 401         | `UNAUTHORIZED`              | Missing or invalid token                 |
+| 401         | `TOKEN_EXPIRED`             | Session token has expired                |
+| 403         | `FORBIDDEN`                 | Insufficient permissions                 |
+| 403         | `TERMS_ACCEPTANCE_REQUIRED` | Terms not accepted                       |
+| 403         | `VERSION_PENDING_REVIEW`    | Already have a pending version           |
+| 404         | `NOT_FOUND`                 | Resource doesn't exist                   |
+| 404         | `BLOB_MISSING`              | Version exists but compiled file is gone |
+| 404         | `TERMS_NOT_FOUND`           | Terms/privacy document not published     |
+| 409         | `VERSION_EXISTS`            | That version number already exists       |
+| 409         | `NAMESPACE_TAKEN`           | Namespace is already registered          |
+| 429         | `RATE_LIMITED`              | Too many requests                        |
+| 500         | `INTERNAL_ERROR`            | Server-side failure                      |

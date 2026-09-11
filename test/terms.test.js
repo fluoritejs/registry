@@ -53,7 +53,10 @@ describe("Terms of Service & Privacy Policy", () => {
         tosVersion: "test-tos",
         privacyVersion: "test-privacy",
       }),
-      headers: { ...authHeaders(userToken), "Content-Type": "application/json" },
+      headers: {
+        ...authHeaders(userToken),
+        "Content-Type": "application/json",
+      },
     });
     assert.strictEqual(res.status, 200);
     assert.deepStrictEqual(res.body, { success: true });
@@ -76,7 +79,10 @@ describe("Terms of Service & Privacy Policy", () => {
         tosVersion: "wrong",
         privacyVersion: "test-privacy",
       }),
-      headers: { ...authHeaders(userToken), "Content-Type": "application/json" },
+      headers: {
+        ...authHeaders(userToken),
+        "Content-Type": "application/json",
+      },
     });
     assert.strictEqual(res.status, 400);
     assert.strictEqual(res.body.error.code, "INVALID_TERMS_VERSION");
@@ -138,8 +144,14 @@ describe("Terms of Service & Privacy Policy", () => {
     assert.strictEqual(blocked.body.error.code, "TERMS_ACCEPTANCE_REQUIRED");
 
     const accept = await request(env.app, "POST", "/v0/terms/accept", {
-      body: JSON.stringify({ tosVersion: "v2", privacyVersion: "test-privacy" }),
-      headers: { ...authHeaders(userToken), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tosVersion: "v2",
+        privacyVersion: "test-privacy",
+      }),
+      headers: {
+        ...authHeaders(userToken),
+        "Content-Type": "application/json",
+      },
     });
     assert.strictEqual(accept.status, 200);
 
@@ -157,7 +169,10 @@ describe("Terms of Service & Privacy Policy", () => {
       "/v0/admin/privacy?version=v2",
       {
         body: newContent,
-        headers: { ...authHeaders(adminToken), "Content-Type": "text/markdown" },
+        headers: {
+          ...authHeaders(adminToken),
+          "Content-Type": "text/markdown",
+        },
       },
     );
     assert.strictEqual(res.status, 200);
@@ -171,13 +186,19 @@ describe("Terms of Service & Privacy Policy", () => {
   it("automation tokens bypass terms enforcement", async () => {
     const reaccept = await request(env.app, "POST", "/v0/terms/accept", {
       body: JSON.stringify({ tosVersion: "v2", privacyVersion: "v2" }),
-      headers: { ...authHeaders(userToken), "Content-Type": "application/json" },
+      headers: {
+        ...authHeaders(userToken),
+        "Content-Type": "application/json",
+      },
     });
     assert.strictEqual(reaccept.status, 200);
 
     const tokRes = await request(env.app, "POST", "/v0/auth/tokens", {
       body: JSON.stringify({ name: "ci", scopes: ["publish"] }),
-      headers: { ...authHeaders(userToken), "Content-Type": "application/json" },
+      headers: {
+        ...authHeaders(userToken),
+        "Content-Type": "application/json",
+      },
     });
     assert.strictEqual(tokRes.status, 201);
     autoToken = tokRes.body.token;
@@ -209,7 +230,10 @@ describe("Terms of Service & Privacy Policy", () => {
         tosVersion: "test-tos",
         privacyVersion: "test-privacy",
       }),
-      headers: { ...authHeaders(autoToken), "Content-Type": "application/json" },
+      headers: {
+        ...authHeaders(autoToken),
+        "Content-Type": "application/json",
+      },
     });
     assert.strictEqual(res.status, 403);
     assert.strictEqual(res.body.error.code, "FORBIDDEN");

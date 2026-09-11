@@ -11,7 +11,9 @@ function getEncryptionKey() {
 }
 
 export function encryptSecret(plaintext, overrideKey) {
-  const key = overrideKey ? Buffer.from(overrideKey, "hex") : getEncryptionKey();
+  const key = overrideKey
+    ? Buffer.from(overrideKey, "hex")
+    : getEncryptionKey();
   if (!key) return plaintext;
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);

@@ -1,4 +1,10 @@
-import { mkdtempSync, rmSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  rmSync,
+  readFileSync,
+  mkdirSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import express from "express";
@@ -46,11 +52,7 @@ export function createTestEnv(deploymentOverrides = {}, configOverrides = {}) {
     "utf8",
   );
   writeFileSync(join(termsDir, "tos.md"), "# Test Terms of Service", "utf8");
-  writeFileSync(
-    join(termsDir, "privacy.md"),
-    "# Test Privacy Policy",
-    "utf8",
-  );
+  writeFileSync(join(termsDir, "privacy.md"), "# Test Privacy Policy", "utf8");
 
   const dbPath = join(dataDir, "registry.sqlite");
   const db = openDb(dbPath);
@@ -131,7 +133,12 @@ export function createTestEnv(deploymentOverrides = {}, configOverrides = {}) {
   app.use("/v0/stats", statsRoutes);
   app.use("/v0/versions", authMiddleware, termsMiddleware, versionRoutes);
   app.use("/v0/webhooks", authMiddleware, termsMiddleware, webhookRoutes);
-  app.use("/v0/notifications", authMiddleware, termsMiddleware, notificationRoutes);
+  app.use(
+    "/v0/notifications",
+    authMiddleware,
+    termsMiddleware,
+    notificationRoutes,
+  );
 
   return {
     app,

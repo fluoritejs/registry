@@ -153,10 +153,7 @@ describe("Webhooks", () => {
         body += chunk;
       });
       req.on("end", () => {
-        received = {
-          body,
-          signature: req.headers["x-fluorite-signature"],
-        };
+        received = { body, signature: req.headers["x-fluorite-signature"] };
         res.writeHead(200);
         res.end("ok");
       });
@@ -174,10 +171,7 @@ describe("Webhooks", () => {
     });
 
     await deliverWithRetry(
-      {
-        url: `http://127.0.0.1:${port}/hook`,
-        secret: encryptedSecret,
-      },
+      { url: `http://127.0.0.1:${port}/hook`, secret: encryptedSecret },
       body,
       "version.published",
       { maxRetries: 0, deliveryTimeoutMs: 5000, retryBackoffMs: 0 },
@@ -192,10 +186,7 @@ describe("Webhooks", () => {
 
     const expectedSig =
       "sha256=" +
-      crypto
-        .createHmac("sha256", secret)
-        .update(received.body)
-        .digest("hex");
+      crypto.createHmac("sha256", secret).update(received.body).digest("hex");
     assert.strictEqual(received.signature, expectedSig);
   });
 });

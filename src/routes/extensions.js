@@ -301,7 +301,10 @@ router.post(
         });
     }
 
-    const publishedVersions = getStmt("highestPublishedVersion").all(user.id, id);
+    const publishedVersions = getStmt("highestPublishedVersion").all(
+      user.id,
+      id,
+    );
     const published = publishedVersions.length
       ? publishedVersions.reduce((a, b) =>
           semver.rcompare(a.version, b.version) <= 0 ? a : b,

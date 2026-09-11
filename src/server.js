@@ -147,13 +147,23 @@ app.use(
 
 // Public routes
 app.use("/v0/users", optionalAuthMiddleware, termsMiddleware, userRoutes);
-app.use("/v0/extensions", optionalAuthMiddleware, termsMiddleware, extensionRoutes);
+app.use(
+  "/v0/extensions",
+  optionalAuthMiddleware,
+  termsMiddleware,
+  extensionRoutes,
+);
 app.use("/v0/stats", statsRoutes);
 
 // Authenticated routes
 app.use("/v0/versions", authMiddleware, termsMiddleware, versionRoutes);
 app.use("/v0/webhooks", authMiddleware, termsMiddleware, webhookRoutes);
-app.use("/v0/notifications", authMiddleware, termsMiddleware, notificationRoutes);
+app.use(
+  "/v0/notifications",
+  authMiddleware,
+  termsMiddleware,
+  notificationRoutes,
+);
 
 app.use((err, req, res, _next) => {
   log.error(`Unhandled error: ${err.message}`);

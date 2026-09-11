@@ -58,7 +58,8 @@ router.post("/terms/accept", requireSession, (req, res) => {
       .json({
         error: {
           code: "INVALID_TERMS_VERSION",
-          message: "The supplied terms or privacy version does not match the current one.",
+          message:
+            "The supplied terms or privacy version does not match the current one.",
           field: null,
         },
       });

@@ -598,18 +598,13 @@ describe("Stats", () => {
         },
       },
     );
-    await request(
-      env.app,
-      "POST",
-      "/v0/extensions/@owner2/pkg-b/versions",
-      {
-        body: src2,
-        headers: {
-          ...authHeaders(owner2Token),
-          "Content-Type": "application/javascript",
-        },
+    await request(env.app, "POST", "/v0/extensions/@owner2/pkg-b/versions", {
+      body: src2,
+      headers: {
+        ...authHeaders(owner2Token),
+        "Content-Type": "application/javascript",
       },
-    );
+    });
 
     const res = await request(env.app, "GET", "/v0/stats");
     assert.strictEqual(res.status, 200);
