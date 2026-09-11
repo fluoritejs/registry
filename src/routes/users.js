@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { existsSync, unlinkSync } from "node:fs";
 import { getStmt, deleteUserCascade, runTransaction } from "../db.js";
 import { hashPassword, userJson } from "../auth.js";
 import { getConfig } from "../config.js";
@@ -242,30 +241,22 @@ router.delete("/:namespace", async (req, res) => {
         },
       });
   }
-  const versions = await getStmt("listVersionsByUser").all(target.id);
-  for (const v of versions) {
-    try {
-      await getStmt("markVersionDeletionPending").run(v.id);
-      if (v.blob_path && existsSync(v.blob_path)) unlinkSync(v.blob_path);
-      await getStmt("deleteVersion").run(v.id);
-    } catch (err) {
-      log.error(
-        `Failed to delete blob ${v.blob_path} for user ${target.namespace}: ${err.message}`,
-      );
-      return res
-        .status(500)
-        .json({
-          error: {
-            code: "INTERNAL_ERROR",
-            message: "Failed to delete account data.",
-            field: null,
-          },
-        });
-    }
+  try {
+    await deleteUserCascade(target.id);
+  } catch (err) {
+    log.error(
+      `Failed to delete account data for ${target.namespace}: ${err.message}`,
+    );
+    return res
+      .status(500)
+      .json({
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "Failed to delete account data.",
+          field: null,
+        },
+      });
   }
-  await getStmt("deleteAllAuthTokens").run(target.id);
-  await getStmt("deleteAllAutomationTokens").run(target.id);
-  await deleteUserCascade(target.id);
   log.info(`User deleted: ${target.namespace}`);
   res.status(204).end();
 });
