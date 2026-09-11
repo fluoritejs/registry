@@ -1,5 +1,6 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert";
+import { hashToken } from "../src/auth.js";
 import {
   createTestEnv,
   request,
@@ -169,10 +170,14 @@ describe("Auth", () => {
     });
 
     it("rejects expired token", async () => {
+      env.db
+        .prepare("UPDATE auth_tokens SET expires_at = ? WHERE token_hash = ?")
+        .run("2000-01-01T00:00:00.000Z", hashToken(token));
       const res = await request(env.app, "GET", "/v0/auth/me", {
-        headers: authHeaders("expired"),
+        headers: authHeaders(token),
       });
       assert.strictEqual(res.status, 401);
+      assert.strictEqual(res.body.error.code, "TOKEN_EXPIRED");
     });
   });
 
