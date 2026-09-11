@@ -350,6 +350,10 @@ export function prepare(db) {
     `SELECT 1 FROM versions WHERE owner_id = $1 AND status IN ('staging', 'pending') LIMIT 1`,
   );
   s(
+    "lockOwnerPublish",
+    "SELECT pg_advisory_xact_lock(hashtext('publish-' || $1)::bigint)",
+  );
+  s(
     "versionExists",
     "SELECT 1 FROM versions WHERE owner_id = $1 AND package_id = $2 AND version = $3",
   );

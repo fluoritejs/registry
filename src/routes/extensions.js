@@ -30,6 +30,8 @@ import { log } from "../logger.js";
 
 const router = Router();
 
+class PendingPublishBlockedError extends Error {}
+
 function highestVersion(rows) {
   const valid = (rows || []).filter((r) => semver.valid(r.version));
   if (valid.length === 0) return null;
@@ -390,6 +392,12 @@ router.post(
     let blobOwned = false;
     try {
       await runTransaction(async () => {
+        if (getConfig().publishing.onePendingPerOwner) {
+          await getStmt("lockOwnerPublish").run(user.id);
+          if (await getStmt("hasPendingVersion").get(user.id)) {
+            throw new PendingPublishBlockedError();
+          }
+        }
         await getStmt("createVersion").run(
           user.id,
           id,
@@ -423,6 +431,21 @@ router.post(
       });
       blobOwned = false;
     } catch (err) {
+      if (
+        err instanceof PendingPublishBlockedError ||
+        err?.code === "PENDING_PUBLISH_BLOCKED"
+      ) {
+        return res
+          .status(403)
+          .json({
+            error: {
+              code: "VERSION_PENDING_REVIEW",
+              message:
+                "You have another version pending review. It needs to be approved or rejected before you can publish again.",
+              field: null,
+            },
+          });
+      }
       if (blobOwned) {
         try {
           if (existsSync(finalPath)) unlinkSync(finalPath);
