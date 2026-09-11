@@ -5,7 +5,7 @@ import { join, dirname } from "node:path";
 import { createTestEnv, request, signup, authHeaders } from "./helpers.js";
 import { extractManifest } from "../src/manifest.js";
 import { getStmt, blobPath, reconcileStaging } from "../src/db.js";
-import { loadConfig, setConfig } from "../src/config.js";
+import { CONFIG_DEFAULTS, setConfig } from "../src/config.js";
 
 const VALID_SOURCE = readFileSync(
   join(import.meta.dirname, "..", "fixtures", "valid-manifest.js"),
@@ -25,14 +25,11 @@ const COMPILED_SOURCE = readFileSync(
 );
 
 describe("Manifest extraction", () => {
-  const config = loadConfig();
-  setConfig(config);
+  const pattern = CONFIG_DEFAULTS.publishing.packageIdPattern;
+  setConfig(CONFIG_DEFAULTS);
 
   it("extracts a valid manifest", () => {
-    const manifest = extractManifest(
-      VALID_SOURCE,
-      config.publishing.packageIdPattern,
-    );
+    const manifest = extractManifest(VALID_SOURCE, pattern);
     assert.strictEqual(manifest.id, "test-ext");
     assert.strictEqual(manifest.name, "Test Extension");
     assert.strictEqual(manifest.version, "2.1.0");
@@ -40,10 +37,7 @@ describe("Manifest extraction", () => {
   });
 
   it("extracts a manifest from fluorite-compiler output", () => {
-    const manifest = extractManifest(
-      COMPILED_SOURCE,
-      config.publishing.packageIdPattern,
-    );
+    const manifest = extractManifest(COMPILED_SOURCE, pattern);
     assert.strictEqual(manifest.id, "helloworld");
     assert.strictEqual(manifest.name, "It works!");
     assert.strictEqual(manifest.version, "0.1.0");
@@ -54,7 +48,7 @@ describe("Manifest extraction", () => {
     delete globalThis.__fluoriteTestSentinel;
     let threw = false;
     try {
-      extractManifest(MALFORMED_SOURCE, config.publishing.packageIdPattern);
+      extractManifest(MALFORMED_SOURCE, pattern);
     } catch (err) {
       threw = true;
       assert.ok(err.message.includes("No Fluorite manifest"));
@@ -71,7 +65,7 @@ describe("Manifest extraction", () => {
     const source = `var Fluorite = { manifest: { id: 'test', name: 'T', version: 'not-semver', license: 'MIT', description: 'd' } };`;
     let threw = false;
     try {
-      extractManifest(source, config.publishing.packageIdPattern);
+      extractManifest(source, pattern);
     } catch (err) {
       threw = true;
       assert.ok(err.message.includes("Invalid version"));
@@ -83,7 +77,7 @@ describe("Manifest extraction", () => {
     const source = `var Fluorite = { manifest: { id: 'invalid id!', name: 'T', version: '1.0.0', license: 'MIT', description: 'd' } };`;
     let threw = false;
     try {
-      extractManifest(source, config.publishing.packageIdPattern);
+      extractManifest(source, pattern);
     } catch (err) {
       threw = true;
       assert.ok(err.message.includes("Invalid extension id"));
