@@ -31,7 +31,7 @@ function notFound(res, name) {
 function sendDocument(res, name, label) {
   const { [label]: version } = loadManifest(termsDir());
   if (!version) return notFound(res, name);
-  const content = readContent(termsDir(), name);
+  const content = readContent(termsDir(), name, version);
   if (content === null) return notFound(res, name);
   res.set("Content-Type", "text/markdown; charset=utf-8");
   res.set("X-Terms-Version", version);
@@ -103,7 +103,7 @@ function handleAdminUpdate(res, name, label, req) {
         },
       });
   }
-  if (!content) {
+  if (!content.trim()) {
     return res
       .status(400)
       .json({
@@ -130,7 +130,10 @@ function handleAdminUpdate(res, name, label, req) {
       });
   }
   log.info(`Updated ${label} to version ${version.trim()}`);
-  res.json({ version: version.trim(), path: contentPath(dir, name) });
+  res.json({
+    version: version.trim(),
+    path: contentPath(dir, name, version.trim()),
+  });
 }
 
 router.patch("/admin/terms", adminMiddleware, (req, res) =>

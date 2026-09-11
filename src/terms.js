@@ -13,8 +13,10 @@ function manifestPath(termsDir) {
   return join(termsDir, "manifest.yaml");
 }
 
-export function contentPath(termsDir, name) {
-  return join(termsDir, `${name}.md`);
+export function contentPath(termsDir, name, version) {
+  return version
+    ? join(termsDir, `${name}.${version}.md`)
+    : join(termsDir, `${name}.md`);
 }
 
 export function loadManifest(termsDir) {
@@ -37,10 +39,14 @@ export function saveManifest(termsDir, manifest) {
   writeFileSync(manifestPath(termsDir), text, "utf8");
 }
 
-export function readContent(termsDir, name) {
-  const path = contentPath(termsDir, name);
-  if (!existsSync(path)) return null;
-  return readFileSync(path, "utf8");
+export function readContent(termsDir, name, version) {
+  const path = contentPath(termsDir, name, version);
+  if (existsSync(path)) return readFileSync(path, "utf8");
+  if (version) {
+    const legacy = contentPath(termsDir, name);
+    if (existsSync(legacy)) return readFileSync(legacy, "utf8");
+  }
+  return null;
 }
 
 export function writeContent(termsDir, name, content) {
@@ -50,7 +56,7 @@ export function writeContent(termsDir, name, content) {
 
 export function publishPair(termsDir, name, content, label, version) {
   mkdirSync(termsDir, { recursive: true });
-  const contentFile = contentPath(termsDir, name);
+  const contentFile = contentPath(termsDir, name, version);
   const manifestFile = manifestPath(termsDir);
   const manifest = loadManifest(termsDir);
   manifest[label] = version;
