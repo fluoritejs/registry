@@ -583,28 +583,32 @@ router.patch(
 
     const publishedAt = newStatus === "approved" ? nowIso() : null;
     const dbStatus = newStatus === "approved" ? "published" : "rejected";
-    getStmt("updateVersionStatus").run(dbStatus, publishedAt, v.id);
-
-    if (newStatus === "approved") {
-      const user = getStmt("getUserById").get(v.owner_id);
-      if (user && !user.trusted) {
-        getStmt("updateUserTrust").run(1, namespace);
-        log.info(`User ${namespace} is now trusted (first approval)`);
-      }
-    }
 
     const message =
       newStatus === "approved"
         ? `Your version ${version} of ${id} has been approved.`
         : `Your version ${version} of ${id} has been rejected.${reason ? ` Reason: ${reason}` : ""}`;
-    getStmt("createNotification").run(
-      v.owner_id,
-      message,
-      id,
-      version,
-      null,
-      nowIso(),
-    );
+
+    runTransaction(() => {
+      getStmt("updateVersionStatus").run(dbStatus, publishedAt, v.id);
+
+      if (newStatus === "approved") {
+        const owner = getStmt("getUserById").get(v.owner_id);
+        if (owner && !owner.trusted) {
+          getStmt("updateUserTrust").run(1, namespace);
+          log.info(`User ${namespace} is now trusted (first approval)`);
+        }
+      }
+
+      getStmt("createNotification").run(
+        v.owner_id,
+        message,
+        id,
+        version,
+        null,
+        nowIso(),
+      );
+    });
 
     const event =
       newStatus === "approved" ? "version.approved" : "version.rejected";
