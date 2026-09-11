@@ -107,9 +107,15 @@ process.on("SIGINT", shutdown);
 
 process.on("SIGHUP", () => {
   log.info("Received SIGHUP, reloading config.yaml...");
-  const fresh = reloadConfig();
-  setLevel(fresh.logging.level);
-  log.info("Config reloaded");
+  try {
+    const fresh = reloadConfig();
+    setLevel(fresh.logging.level);
+    log.info("Config reloaded");
+  } catch (err) {
+    log.error(
+      `Config reload failed, keeping the active config: ${err.message}`,
+    );
+  }
 });
 
 main().then(() => {
