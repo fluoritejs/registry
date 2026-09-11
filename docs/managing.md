@@ -206,6 +206,6 @@ No manual intervention is needed after a crash.
 
 ## Scaling Notes
 
-- The server is single-process but shares its state through PostgreSQL, so you can run multiple instances behind a load balancer against the same database.
+- The server is single-process but shares its state through PostgreSQL, and extension blobs live under the local `<dataDir>/blobs/` directory. Run multiple instances behind a load balancer against the same database only if `blobs/` sits on shared storage or is replicated to every instance; otherwise keep a single instance.
 - Rate limiting is in-memory and per-process. Multiple instances have independent rate limit counters.
 - Config reload via `SIGHUP` only affects the process that receives the signal.
