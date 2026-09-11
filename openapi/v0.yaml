@@ -167,7 +167,7 @@ components:
       required: [id, createdAt, expiresAt]
       properties:
         id:
-          type: string
+          type: integer
         createdAt:
           type: string
           format: date-time
