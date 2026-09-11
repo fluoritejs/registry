@@ -5,7 +5,7 @@ Thanks for contributing to Fluorite Registry.
 ## Prerequisites
 
 - Node.js 22.13.0+ or 24+, with npm
-- A local PostgreSQL server for running the test suite (the tests create a temporary schema per test run, throwing nothing away)
+- A dedicated, disposable PostgreSQL database for running the test suite. Each run creates and then drops its own schema, so the database it connects to must not be a shared database whose data you rely on.
 
 ## Getting Started
 
@@ -57,7 +57,7 @@ The server loads `deployment.yaml` and `config.yaml` from the repo root if prese
 
 ## Testing
 
-Tests use the built-in `node:test` runner. Each test file spins up an isolated PostgreSQL schema (dropped on teardown), so tests never touch a real database you care about. They connect to `DATABASE_URL` or default to `postgres://fluorite:fluorite@localhost:5432/fluorite`.
+Tests use the built-in `node:test` runner. Each test file creates an isolated schema (`test_<random>`) on the server from `DATABASE_URL` and drops it, cascading, on teardown. Setting `DATABASE_URL` is the explicit opt-in that points the suite at a given server; without it, tests fall back to `postgres://fluorite:fluorite@localhost:5432/fluorite`. The suite only ever creates and drops schemas prefixed `test_` inside the target database and never touches objects outside them, but teardown does drop, so point `DATABASE_URL` at a dedicated disposable database, not at a shared one you care about.
 
 Run all tests:
 
