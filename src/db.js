@@ -520,19 +520,24 @@ export async function runTransaction(fn) {
 }
 
 export async function deleteUserCascade(id) {
+  const blobs = [];
   await runTransaction(async () => {
     const versions = await getStmt("listVersionsByUser").all(id);
     for (const v of versions) {
-      try {
-        if (v.blob_path && existsSync(v.blob_path)) unlinkSync(v.blob_path);
-        await getStmt("deleteVersion").run(v.id);
-      } catch (err) {
-        await getStmt("markVersionDeletionPending").run(v.id);
-        log.warn(
-          `Failed to delete blob ${v.blob_path}, left pending for retry: ${err.message}`,
-        );
-      }
+      if (v.blob_path) blobs.push({ versionId: v.id, path: v.blob_path });
+      await getStmt("deleteVersion").run(v.id);
     }
     await conn().unsafe("DELETE FROM users WHERE id = $1", [id]);
   });
+
+  for (const { versionId, path } of blobs) {
+    try {
+      if (existsSync(path)) unlinkSync(path);
+    } catch (err) {
+      await getStmt("markVersionDeletionPending").run(versionId);
+      log.warn(
+        `Failed to delete blob ${path}, left pending for retry: ${err.message}`,
+      );
+    }
+  }
 }
