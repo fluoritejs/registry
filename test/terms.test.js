@@ -224,6 +224,24 @@ describe("Terms of Service & Privacy Policy", () => {
     assert.strictEqual(withToken.body.error.code, "FORBIDDEN");
   });
 
+  it("lets automation tokens publish when the owner must re-accept terms", async () => {
+    const source = `var Fluorite = { manifest: { id: 'terms-pkg', name: 'Terms Pkg', version: '1.0.0', license: 'MIT', description: 'd' } };`;
+    const res = await request(
+      env.app,
+      "POST",
+      "/v0/extensions/@termsuser/terms-pkg/versions",
+      {
+        body: source,
+        headers: {
+          ...authHeaders(autoToken),
+          "Content-Type": "application/javascript",
+        },
+      },
+    );
+    assert.strictEqual(res.status, 201);
+    assert.strictEqual(res.body.status, "pending");
+  });
+
   it("rejects automation tokens from accepting terms", async () => {
     const res = await request(env.app, "POST", "/v0/terms/accept", {
       body: JSON.stringify({
