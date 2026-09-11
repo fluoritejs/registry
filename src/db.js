@@ -420,10 +420,10 @@ export function prepare(db) {
   s(
     "stats",
     `SELECT
-    (SELECT COUNT(*) FROM (SELECT DISTINCT owner_id, package_id FROM versions WHERE status = 'published')) as published,
+    (SELECT COUNT(*) FROM (SELECT DISTINCT owner_id, package_id FROM versions WHERE status = 'published' AND yanked = 0)) as published,
     (SELECT COUNT(*) FROM versions WHERE status = 'pending') as pending,
-    (SELECT COUNT(DISTINCT owner_id) FROM versions WHERE status = 'published') as authors,
-    (SELECT COALESCE(SUM(downloads), 0) FROM versions WHERE status = 'published') as totalDownloads`,
+    (SELECT COUNT(DISTINCT owner_id) FROM versions WHERE status = 'published' AND yanked = 0) as authors,
+    (SELECT COALESCE(SUM(downloads), 0) FROM versions WHERE status = 'published' AND yanked = 0) as totalDownloads`,
   );
 
   return stmts;
