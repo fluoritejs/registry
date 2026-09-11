@@ -115,12 +115,24 @@ export function loadDeployment(overrides = {}) {
   return raw;
 }
 
+function validateEncryptionKey(cfg) {
+  const key = cfg.webhooks?.encryptionKey;
+  if (key === undefined || key === "") return;
+  if (typeof key !== "string" || !/^[0-9a-f]{64}$/i.test(key)) {
+    throw new Error(
+      "config.yaml: webhooks.encryptionKey must be a 64-character hex string " +
+        "(32 random bytes) for AES-256-GCM. Generate one with: openssl rand -hex 32",
+    );
+  }
+}
+
 export function loadConfig(overrides = {}) {
   const raw = deepMerge(
     CONFIG_DEFAULTS,
     deepMerge(loadYaml(resolve("config.yaml")), overrides),
   );
   raw.auth.tokenTtlMs = parseDuration(raw.auth.tokenTtl);
+  validateEncryptionKey(raw);
   return raw;
 }
 

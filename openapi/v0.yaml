@@ -1031,6 +1031,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Webhook"
+        "500":
+          description: webhooks.encryptionKey is not configured; webhooks cannot be created until a key is set.
 
   /webhooks/{id}:
     patch:

@@ -2,7 +2,7 @@ import { Router } from "express";
 import crypto from "node:crypto";
 import { getStmt } from "../db.js";
 import { nowIso } from "../auth.js";
-import { isSafeWebhookUrl, encryptSecret } from "../webhooks.js";
+import { isSafeWebhookUrl, encryptSecret, getEncryptionKey } from "../webhooks.js";
 import { log } from "../logger.js";
 
 const router = Router();
@@ -96,6 +96,18 @@ router.post("/", (req, res) => {
           code: "VALIDATION_ERROR",
           message: "Invalid webhook URL.",
           field: "url",
+        },
+      });
+  }
+  if (!getEncryptionKey()) {
+    return res
+      .status(500)
+      .json({
+        error: {
+          code: "WEBHOOK_ENCRYPTION_REQUIRED",
+          message:
+            "webhooks.encryptionKey is not configured. Generate one with `openssl rand -hex 32` and add it to config.yaml before creating webhooks.",
+          field: null,
         },
       });
   }

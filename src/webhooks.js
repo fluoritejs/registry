@@ -4,17 +4,26 @@ import { getStmt } from "./db.js";
 import { log } from "./logger.js";
 import { getConfig } from "./config.js";
 
-function getEncryptionKey() {
+export function getEncryptionKey() {
   const key = getConfig().webhooks?.encryptionKey;
   if (!key) return null;
   return Buffer.from(key, "hex");
 }
 
+function requireEncryptionKey() {
+  const key = getEncryptionKey();
+  if (!key) {
+    throw new Error(
+      "webhooks.encryptionKey is not configured; webhook secrets cannot be encrypted. Set it in config.yaml (openssl rand -hex 32).",
+    );
+  }
+  return key;
+}
+
 export function encryptSecret(plaintext, overrideKey) {
   const key = overrideKey
     ? Buffer.from(overrideKey, "hex")
-    : getEncryptionKey();
-  if (!key) return plaintext;
+    : requireEncryptionKey();
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
   const encrypted = Buffer.concat([
@@ -26,8 +35,7 @@ export function encryptSecret(plaintext, overrideKey) {
 }
 
 export function decryptSecret(stored) {
-  const key = getEncryptionKey();
-  if (!key) return stored;
+  const key = requireEncryptionKey();
   const buf = Buffer.from(stored, "base64");
   const iv = buf.subarray(0, 12);
   const tag = buf.subarray(12, 28);

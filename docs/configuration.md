@@ -147,11 +147,12 @@ Package ID pattern: alphanumeric, 1-64 chars, dots/hyphens/underscores allowed b
 
 ### webhooks
 
-| Key                 | Default | Description                                                                |
-| ------------------- | ------- | -------------------------------------------------------------------------- |
-| `deliveryTimeoutMs` | `5000`  | HTTP timeout per webhook delivery attempt.                                 |
-| `maxRetries`        | `3`     | Retries after a failed delivery (0 = no retries).                          |
-| `retryBackoffMs`    | `2000`  | Base delay between retries, multiplied by attempt number (linear backoff). |
+| Key                 | Default | Description                                                                                                                                                          |
+| ------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `encryptionKey`     | `""`    | 32-byte hex key (AES-256-GCM) used to encrypt webhook secrets at rest. Generate with `openssl rand -hex 32`. Webhook creation is refused until this is configured; a non-empty malformed value fails at startup. |
+| `deliveryTimeoutMs` | `5000`  | HTTP timeout per webhook delivery attempt.                                                                                                                           |
+| `maxRetries`        | `3`     | Retries after a failed delivery (0 = no retries).                                                                                                                    |
+| `retryBackoffMs`    | `2000`  | Base delay between retries, multiplied by attempt number (linear backoff).                                                                                           |
 
 ### terms
 

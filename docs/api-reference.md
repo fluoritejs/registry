@@ -576,6 +576,8 @@ Create a webhook. The `secret` is returned once and must be stored.
 
 **Valid events:** `version.published`, `version.pending`, `version.approved`, `version.rejected`, `version.yanked`
 
+**Error 500 (`WEBHOOK_ENCRYPTION_REQUIRED`):** `webhooks.encryptionKey` is not configured (set it via `openssl rand -hex 32` in `config.yaml`). Webhooks cannot be created until a key is configured.
+
 **Response 201:**
 
 ```json

@@ -4,6 +4,65 @@ import crypto from "node:crypto";
 import http from "node:http";
 import { createTestEnv, request, signup, authHeaders } from "./helpers.js";
 import { encryptSecret, deliverWithRetry } from "../src/webhooks.js";
+import { loadConfig } from "../src/config.js";
+
+describe("Webhooks — encryption key config", () => {
+  it("accepts a valid 32-byte hex encryption key at config load", () => {
+    const key = "a".repeat(64);
+    const cfg = loadConfig({ webhooks: { encryptionKey: key } });
+    assert.strictEqual(cfg.webhooks.encryptionKey, key);
+  });
+
+  it("rejects a malformed encryption key at config load", () => {
+    const badKeys = ["tooshort", "x".repeat(64), "zz".repeat(32), 12345];
+    for (const bad of badKeys) {
+      assert.throws(
+        () => loadConfig({ webhooks: { encryptionKey: bad } }),
+        /encryptionKey/,
+      );
+    }
+  });
+});
+
+describe("Webhooks — encryption key required", () => {
+  let env, adminToken;
+
+  before(async () => {
+    env = createTestEnv();
+    const res = await signup(env.app, "keylessadmin", "password123");
+    adminToken = res.body.token;
+  });
+
+  after(() => env.cleanup());
+
+  it("refuses to create a webhook when webhooks.encryptionKey is not configured", async () => {
+    const res = await request(env.app, "POST", "/v0/webhooks", {
+      body: JSON.stringify({
+        url: "https://example.com/hook",
+        events: ["version.published"],
+      }),
+      headers: {
+        ...authHeaders(adminToken),
+        "Content-Type": "application/json",
+      },
+    });
+    assert.strictEqual(res.status, 500);
+    assert.strictEqual(res.body.error.code, "WEBHOOK_ENCRYPTION_REQUIRED");
+    assert.ok(res.body.error.message.includes("encryptionKey"));
+  });
+
+  it("no webhook was created", async () => {
+    const res = await request(env.app, "GET", "/v0/webhooks", {
+      headers: authHeaders(adminToken),
+    });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.length, 0);
+  });
+
+  it("encryptSecret throws when no key is configured", () => {
+    assert.throws(() => encryptSecret("a-secret"), /encryptionKey/);
+  });
+});
 
 describe("Webhooks", () => {
   let env, adminToken, encryptionKey;

@@ -36,6 +36,9 @@ notifications:
   includeUnreadCountHeader: true
 
 webhooks:
+  # Secrets are encrypted at rest with AES-256-GCM. Required to create webhooks.
+  # Generate one with: openssl rand -hex 32
+  encryptionKey: ""
   deliveryTimeoutMs: 5000
   maxRetries: 3
   retryBackoffMs: 2000
