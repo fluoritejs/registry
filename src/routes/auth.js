@@ -1,6 +1,6 @@
 import { Router } from "express";
 import crypto from "node:crypto";
-import { getStmt } from "../db.js";
+import { getStmt, runTransaction } from "../db.js";
 import {
   hashPassword,
   verifyPassword,
@@ -108,33 +108,37 @@ router.post("/signup", rateLimitMiddleware("signup"), async (req, res) => {
       });
   }
 
-  const userCount = (await getStmt("countUsers").get()).count;
+  let user;
   let type = "normal";
   let trusted = 0;
-  if (getDeployment().admin.firstUserBecomesAdmin && userCount === 0) {
-    type = "admin";
-    trusted = 1;
-  }
+  await runTransaction(async () => {
+    await getStmt("lockSignupFirstAdmin").run();
+    const userCount = (await getStmt("countUsers").get()).count;
+    if (getDeployment().admin.firstUserBecomesAdmin && userCount === 0) {
+      type = "admin";
+      trusted = 1;
+    }
 
-  const hash = hashPassword(password);
-  const user = await getStmt("createUser").get(
-    namespace,
-    displayName || "",
-    hash,
-    type,
-    trusted,
-  );
-
-  if (userCount === 0 && getDeployment().admin.firstUserBecomesAdmin) {
-    const { tosVersion, privacyVersion } = loadManifest(config.terms.dir);
-    await getStmt("updateUserTermsAcceptance").run(
-      nowIso(),
-      tosVersion,
-      nowIso(),
-      privacyVersion,
-      user.id,
+    const hash = hashPassword(password);
+    user = await getStmt("createUser").get(
+      namespace,
+      displayName || "",
+      hash,
+      type,
+      trusted,
     );
-  }
+
+    if (userCount === 0 && getDeployment().admin.firstUserBecomesAdmin) {
+      const { tosVersion, privacyVersion } = loadManifest(config.terms.dir);
+      await getStmt("updateUserTermsAcceptance").run(
+        nowIso(),
+        tosVersion,
+        nowIso(),
+        privacyVersion,
+        user.id,
+      );
+    }
+  });
 
   const token = generateToken();
   const tokenHash = hashToken(token);

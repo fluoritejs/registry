@@ -259,6 +259,10 @@ export function prepare(db) {
   );
   s("listUsers", "SELECT * FROM users ORDER BY id ASC LIMIT $1 OFFSET $2");
   s("countUsers", "SELECT COUNT(*)::int as count FROM users");
+  s(
+    "lockSignupFirstAdmin",
+    "SELECT pg_advisory_xact_lock(hashtext('fluorite-signup')::bigint)",
+  );
 
   // Auth tokens
   s(
