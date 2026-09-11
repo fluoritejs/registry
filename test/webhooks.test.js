@@ -149,6 +149,7 @@ describe("Webhooks", () => {
       "http://10.0.0.5/hook",
       "http://192.168.1.1/hook",
       "https://[fe80::1]/hook",
+      "https://[::ffff:7f00:1]/hook",
       "file:///etc/passwd",
       "ftp://example.com/hook",
       "not-a-url",
