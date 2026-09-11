@@ -1,26 +1,40 @@
 import crypto from "node:crypto";
+import { promisify } from "node:util";
 import { getConfig } from "./config.js";
 import { getStmt } from "./db.js";
 import { loadManifest } from "./terms.js";
 
-export function hashPassword(password) {
+const scryptAsync = promisify(crypto.scrypt);
+const SCRYPT_MAXMEM = 256 * 1024 * 1024;
+
+export async function hashPassword(password) {
   const cfg = getConfig().auth.passwordHashing;
   const salt = crypto.randomBytes(16).toString("hex");
-  const hash = crypto.scryptSync(password, salt, 64, {
+  const hash = await scryptAsync(password, salt, 64, {
     N: cfg.N,
     r: cfg.r,
     p: cfg.p,
+    maxmem: SCRYPT_MAXMEM,
   });
   return `${salt}:${hash.toString("hex")}`;
 }
 
-export function verifyPassword(password, stored) {
+export async function verifyPassword(password, stored) {
   const [salt, hex] = stored.split(":");
+  if (
+    !salt ||
+    typeof hex !== "string" ||
+    hex.length !== 128 ||
+    !/^[0-9a-f]+$/.test(hex)
+  ) {
+    return false;
+  }
   const cfg = getConfig().auth.passwordHashing;
-  const hash = crypto.scryptSync(password, salt, 64, {
+  const hash = await scryptAsync(password, salt, 64, {
     N: cfg.N,
     r: cfg.r,
     p: cfg.p,
+    maxmem: SCRYPT_MAXMEM,
   });
   return crypto.timingSafeEqual(Buffer.from(hex, "hex"), hash);
 }
@@ -47,19 +61,7 @@ async function successResponse(res, user, token, config) {
     const unread = await getStmt("countUnreadNotifications").get(user.id);
     res.set("X-Unread-Notifications", String(unread.count));
   }
-  return {
-    user: {
-      namespace: user.namespace,
-      displayName: user.display_name,
-      type: user.type,
-      trusted: !!user.trusted,
-      tosAcceptedAt: user.tos_accepted_at || "",
-      tosVersion: user.tos_version || "",
-      privacyAcceptedAt: user.privacy_accepted_at || "",
-      privacyVersion: user.privacy_version || "",
-    },
-    token,
-  };
+  return { user: userJson(user), token };
 }
 
 function userJson(user) {

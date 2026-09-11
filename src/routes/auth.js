@@ -111,34 +111,49 @@ router.post("/signup", rateLimitMiddleware("signup"), async (req, res) => {
   let user;
   let type = "normal";
   let trusted = 0;
-  await runTransaction(async () => {
-    await getStmt("lockSignupFirstAdmin").run();
-    const userCount = (await getStmt("countUsers").get()).count;
-    if (getDeployment().admin.firstUserBecomesAdmin && userCount === 0) {
-      type = "admin";
-      trusted = 1;
-    }
+  const hash = await hashPassword(password);
+  try {
+    await runTransaction(async () => {
+      await getStmt("lockSignupFirstAdmin").run();
+      const userCount = (await getStmt("countUsers").get()).count;
+      if (getDeployment().admin.firstUserBecomesAdmin && userCount === 0) {
+        type = "admin";
+        trusted = 1;
+      }
 
-    const hash = hashPassword(password);
-    user = await getStmt("createUser").get(
-      namespace,
-      displayName || "",
-      hash,
-      type,
-      trusted,
-    );
-
-    if (userCount === 0 && getDeployment().admin.firstUserBecomesAdmin) {
-      const { tosVersion, privacyVersion } = loadManifest(config.terms.dir);
-      await getStmt("updateUserTermsAcceptance").run(
-        nowIso(),
-        tosVersion,
-        nowIso(),
-        privacyVersion,
-        user.id,
+      user = await getStmt("createUser").get(
+        namespace,
+        displayName || "",
+        hash,
+        type,
+        trusted,
       );
+
+      if (userCount === 0 && getDeployment().admin.firstUserBecomesAdmin) {
+        const { tosVersion, privacyVersion } = loadManifest(config.terms.dir);
+        await getStmt("updateUserTermsAcceptance").run(
+          nowIso(),
+          tosVersion,
+          nowIso(),
+          privacyVersion,
+          user.id,
+        );
+      }
+    });
+  } catch (err) {
+    if (err?.code === "23505") {
+      return res
+        .status(409)
+        .json({
+          error: {
+            code: "NAMESPACE_TAKEN",
+            message: "This namespace is already taken.",
+            field: "namespace",
+          },
+        });
     }
-  });
+    throw err;
+  }
 
   const token = generateToken();
   const tokenHash = hashToken(token);
@@ -185,7 +200,7 @@ router.post("/login", rateLimitMiddleware("login"), async (req, res) => {
       });
   }
 
-  if (!verifyPassword(password, user.password_hash)) {
+  if (!(await verifyPassword(password, user.password_hash))) {
     return res
       .status(401)
       .json({
@@ -288,7 +303,7 @@ router.get("/tokens", sessionAuth, async (req, res) => {
 
 router.post("/tokens", sessionAuth, async (req, res) => {
   const { name, scopes } = req.body ?? {};
-  if (!name || !scopes || !Array.isArray(scopes) || scopes.length === 0) {
+  if (!scopes || !Array.isArray(scopes) || scopes.length === 0) {
     return res
       .status(400)
       .json({
@@ -296,6 +311,17 @@ router.post("/tokens", sessionAuth, async (req, res) => {
           code: "VALIDATION_ERROR",
           message: "name and scopes are required.",
           field: null,
+        },
+      });
+  }
+  if (typeof name !== "string" || name.trim().length === 0) {
+    return res
+      .status(400)
+      .json({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "name must be a non-empty string.",
+          field: "name",
         },
       });
   }
@@ -316,20 +342,21 @@ router.post("/tokens", sessionAuth, async (req, res) => {
   const token = generateToken();
   const id = crypto.randomUUID();
   const tokenHash = hashToken(token);
+  const createdAt = nowIso();
   await getStmt("createAutomationToken").run(
     id,
     req.auth.user.id,
     name,
     tokenHash,
     JSON.stringify(scopes),
-    nowIso(),
+    createdAt,
   );
 
   log.info(`Automation token created: ${name} for ${req.auth.user.namespace}`);
 
   res
     .status(201)
-    .json({ id, name, scopes, createdAt: nowIso(), lastUsedAt: null, token });
+    .json({ id, name, scopes, createdAt, lastUsedAt: null, token });
 });
 
 router.delete("/tokens/:id", sessionAuth, async (req, res) => {

@@ -5,6 +5,7 @@ import {
   setConfig,
   setDeployment,
   reloadConfig,
+  getConfig,
 } from "./config.js";
 import {
   openDb,
@@ -45,7 +46,9 @@ async function main() {
       deployment.admin.bootstrapAccount.namespace,
     );
     if (!existing) {
-      const hash = hashPassword(deployment.admin.bootstrapAccount.password);
+      const hash = await hashPassword(
+        deployment.admin.bootstrapAccount.password,
+      );
       await getStmt("createUser").run(
         deployment.admin.bootstrapAccount.namespace,
         deployment.admin.bootstrapAccount.displayName || "Administrator",
@@ -83,9 +86,10 @@ function shutdown() {
   shuttingDown = true;
   log.info("Shutting down...");
 
+  const active = getConfig();
   const timeoutMs = Math.min(
-    config.server.shutdownTimeoutMs,
-    config.server.shutdownTimeoutMaxMs,
+    active.server.shutdownTimeoutMs,
+    active.server.shutdownTimeoutMaxMs,
   );
 
   const forceExit = setTimeout(() => {
@@ -94,11 +98,14 @@ function shutdown() {
   }, timeoutMs);
 
   server.close(async () => {
-    clearTimeout(forceExit);
     log.info("HTTP server closed");
-    await db.end();
-    log.info("Database connections closed");
-    process.exit(0);
+    try {
+      await db.end();
+      log.info("Database connections closed");
+    } finally {
+      clearTimeout(forceExit);
+      process.exit(0);
+    }
   });
 }
 
@@ -118,10 +125,15 @@ process.on("SIGHUP", () => {
   }
 });
 
-main().then(() => {
-  server.listen(PORT, () => {
-    log.info(`Fluorite Registry listening on port ${PORT}`);
+main()
+  .then(() => {
+    server.listen(PORT, () => {
+      log.info(`Fluorite Registry listening on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    log.error(`Startup failed: ${err.message}`);
+    process.exit(1);
   });
-});
 
 export { app, server, db };

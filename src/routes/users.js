@@ -103,14 +103,30 @@ router.post("/", async (req, res) => {
         },
       });
   }
-  const hash = hashPassword(password);
-  const result = await getStmt("createUser").get(
-    namespace,
-    displayName || "",
-    hash,
-    "normal",
-    0,
-  );
+  const hash = await hashPassword(password);
+  let result;
+  try {
+    result = await getStmt("createUser").get(
+      namespace,
+      displayName || "",
+      hash,
+      "normal",
+      0,
+    );
+  } catch (err) {
+    if (err?.code === "23505") {
+      return res
+        .status(409)
+        .json({
+          error: {
+            code: "NAMESPACE_TAKEN",
+            message: "This namespace is already taken.",
+            field: "namespace",
+          },
+        });
+    }
+    throw err;
+  }
   const user = await getStmt("getUserById").get(result.id);
   log.info(`Admin created user: ${namespace}`);
   res.status(201).json(userJson(user));
@@ -163,6 +179,18 @@ router.patch("/:namespace", async (req, res) => {
   }
 
   const { displayName, password } = req.body ?? {};
+  if (displayName !== undefined && invalidDisplayName(displayName)) {
+    return res
+      .status(400)
+      .json({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: `displayName must be a string of at most ${MAX_DISPLAY_NAME} characters.`,
+          field: "displayName",
+        },
+      });
+  }
+
   let updatedUser = target;
 
   if (password !== undefined) {
@@ -177,7 +205,7 @@ router.patch("/:namespace", async (req, res) => {
           },
         });
     }
-    const hash = hashPassword(password);
+    const hash = await hashPassword(password);
     await runTransaction(async () => {
       await getStmt("updateUserPassword").run(hash, target.namespace);
       await getStmt("deleteAllAuthTokens").run(target.id);
@@ -190,17 +218,6 @@ router.patch("/:namespace", async (req, res) => {
   }
 
   if (displayName !== undefined) {
-    if (invalidDisplayName(displayName)) {
-      return res
-        .status(400)
-        .json({
-          error: {
-            code: "VALIDATION_ERROR",
-            message: `displayName must be a string of at most ${MAX_DISPLAY_NAME} characters.`,
-            field: "displayName",
-          },
-        });
-    }
     await getStmt("updateUserDisplayName").run(displayName, target.namespace);
     updatedUser = await getStmt("getUserByNamespace").get(target.namespace);
   }
@@ -297,7 +314,7 @@ router.patch("/:namespace/role", requireSession, async (req, res) => {
   res.json(userJson(updated));
 });
 
-router.patch("/:namespace/trust", async (req, res) => {
+router.patch("/:namespace/trust", requireSession, async (req, res) => {
   if (!req.auth || req.auth.user.type !== "admin") {
     return res
       .status(403)

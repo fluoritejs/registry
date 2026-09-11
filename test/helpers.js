@@ -84,7 +84,7 @@ export async function createTestEnv(
   if (deployment.admin.bootstrapAccount) {
     const bootstrap = deployment.admin.bootstrapAccount;
     if (!(await getStmt("getUserByNamespace").get(bootstrap.namespace))) {
-      const hash = hashPassword(bootstrap.password);
+      const hash = await hashPassword(bootstrap.password);
       await getStmt("createUser").get(
         bootstrap.namespace,
         bootstrap.displayName || "Administrator",
