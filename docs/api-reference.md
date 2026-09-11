@@ -645,7 +645,7 @@ function verifySignature(body, secret, signature) {
   const expected =
     "sha256=" +
     crypto
-      .createHmac("sha256", Buffer.from(secret, "hex"))
+      .createHmac("sha256", secret)
       .update(body)
       .digest("hex");
   const expectedBuf = Buffer.from(expected);

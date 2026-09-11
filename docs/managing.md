@@ -123,7 +123,7 @@ function verify(body, secretHex, signatureHeader) {
   const expected =
     "sha256=" +
     crypto
-      .createHmac("sha256", Buffer.from(secretHex, "hex"))
+      .createHmac("sha256", secretHex)
       .update(body)
       .digest("hex");
   const expectedBuf = Buffer.from(expected);
