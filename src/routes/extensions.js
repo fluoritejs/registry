@@ -89,6 +89,17 @@ router.get("/", (req, res) => {
   const limit = parseLimit(req.query, defaultSize, maxPageSize);
   const after = parseKeysetCursor(req.query) ?? Number.MAX_SAFE_INTEGER;
   const q = req.query.q;
+  if (q !== undefined && typeof q !== "string") {
+    return res
+      .status(400)
+      .json({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "q must be a string.",
+          field: "q",
+        },
+      });
+  }
 
   const identities = q
     ? getStmt("searchExtensionIdentities").all(q, q, q, q, after, limit + 1)
