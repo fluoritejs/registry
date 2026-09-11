@@ -90,7 +90,14 @@
 
 > **Important:** You will need Docker or Podman for this.
 
-1. Copy the [example compose file](compose.example.yaml), [deployment file](deployment.example.yaml), and [config file](config.example.yaml) to the directory you'll use for registry storage.
+1. Copy the [example compose file](compose.example.yaml), [deployment file](deployment.example.yaml), and [config file](config.example.yaml) into the directory you'll use for registry storage, renaming the `.example` suffix off:
+
+   ```bash
+   mkdir registry-storage
+   cp compose.example.yaml registry-storage/compose.yaml
+   cp deployment.example.yaml registry-storage/deployment.yaml
+   cp config.example.yaml registry-storage/config.yaml
+   ```
 
 2. Make sure to configure deployment and general configuration data.
 
