@@ -79,7 +79,7 @@ router.post("/terms/accept", requireSession, async (req, res) => {
   res.json({ success: true });
 });
 
-function handleAdminUpdate(res, name, label, req) {
+async function handleAdminUpdate(res, name, label, req) {
   const version = req.query.version;
   const trimmed = typeof version === "string" ? version.trim() : "";
   if (!trimmed) {
@@ -134,7 +134,7 @@ function handleAdminUpdate(res, name, label, req) {
   }
   const dir = termsDir();
   try {
-    publishPair(dir, name, content, label, trimmed);
+    await publishPair(dir, name, content, label, trimmed);
   } catch (err) {
     if (err instanceof TermsVersionConflictError) {
       return res

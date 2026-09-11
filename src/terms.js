@@ -7,7 +7,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import yaml from "js-yaml";
 import { getConfig } from "./config.js";
 
@@ -22,6 +22,7 @@ export function contentPath(termsDir, name, version) {
 }
 
 const manifestCache = new Map();
+const publishChains = new Map();
 
 export function loadManifest(termsDir) {
   const path = manifestPath(termsDir);
@@ -102,7 +103,7 @@ export class TermsVersionConflictError extends Error {
   }
 }
 
-export function publishPair(termsDir, name, content, label, version) {
+function runPublishPair(termsDir, name, content, label, version) {
   assertSafeVersion(version);
   mkdirSync(termsDir, { recursive: true });
   const contentFile = contentPath(termsDir, name, version);
@@ -123,6 +124,7 @@ export function publishPair(termsDir, name, content, label, version) {
     writeFileSync(manifestTmp, yaml.dump(manifest), "utf8");
     renameSync(contentTmp, contentFile);
     renameSync(manifestTmp, manifestFile);
+    manifestCache.delete(manifestFile);
   } catch (err) {
     try {
       if (existsSync(contentTmp)) unlinkSync(contentTmp);
@@ -136,4 +138,14 @@ export function publishPair(termsDir, name, content, label, version) {
     }
     throw err;
   }
+}
+
+export function publishPair(termsDir, name, content, label, version) {
+  const key = resolve(termsDir);
+  const prev = publishChains.get(key) ?? Promise.resolve();
+  const next = prev.then(() =>
+    runPublishPair(termsDir, name, content, label, version),
+  );
+  publishChains.set(key, next.catch(() => {}));
+  return next;
 }
