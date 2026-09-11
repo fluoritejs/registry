@@ -88,6 +88,18 @@ export function blobPath(dataDir, owner, packageId, version) {
   return join(dataDir, "blobs", owner, packageId, `${version}.js`);
 }
 
+export const STAGING_SUFFIX = ".staging-";
+
+export function stagingBlobPath(dataDir, owner, packageId, version, nonce) {
+  return join(
+    dataDir,
+    "blobs",
+    owner,
+    packageId,
+    `${version}${STAGING_SUFFIX}${nonce}`,
+  );
+}
+
 export function reconcileStaging(db, dataDir) {
   const staging = db
     .prepare(
@@ -135,7 +147,10 @@ export function cleanupTempBlobs(dataDir) {
       const full = join(dir, entry.name);
       if (entry.isDirectory()) {
         walk(full);
-      } else if (entry.name.startsWith(".tmp-")) {
+      } else if (
+        entry.name.startsWith(".tmp-") ||
+        entry.name.includes(STAGING_SUFFIX)
+      ) {
         try {
           unlinkSync(full);
           log.debug(`Cleaned up temp blob: ${full}`);

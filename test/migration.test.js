@@ -127,4 +127,25 @@ describe("Migration & recovery", () => {
     assert.ok(existsSync(join(blobsDir, "user", "ext", "1.0.0.js")));
     rmSync(dir, { recursive: true, force: true });
   });
+
+  it("cleans up orphaned staging blob files", () => {
+    const dir = mkdtempSync(join(tmpdir(), "cleanup-"));
+    const blobsDir = join(dir, "blobs");
+    mkdirSync(join(blobsDir, "user", "ext"), { recursive: true });
+    writeFileSync(
+      join(blobsDir, "user", "ext", "1.0.0.staging-0123456789abcdef"),
+      "temp",
+    );
+    writeFileSync(join(blobsDir, "user", "ext", "1.0.0.js"), "real");
+
+    cleanupTempBlobs(dir);
+
+    assert.ok(
+      !existsSync(
+        join(blobsDir, "user", "ext", "1.0.0.staging-0123456789abcdef"),
+      ),
+    );
+    assert.ok(existsSync(join(blobsDir, "user", "ext", "1.0.0.js")));
+    rmSync(dir, { recursive: true, force: true });
+  });
 });

@@ -10,7 +10,7 @@ import {
   existsSync,
 } from "node:fs";
 import { dirname } from "node:path";
-import { getStmt, blobPath, runTransaction } from "../db.js";
+import { getStmt, blobPath, stagingBlobPath, runTransaction } from "../db.js";
 import { extractManifest } from "../manifest.js";
 import {
   nowIso,
@@ -360,14 +360,12 @@ router.post(
     const dir = dirname(blobPath(dataDir, namespace, id, manifest.version));
     mkdirSync(dir, { recursive: true });
 
-    const stagingPath = blobPath(
+    const stagingPath = stagingBlobPath(
       dataDir,
       namespace,
       id,
       manifest.version,
-    ).replace(
-      /\.js$/,
-      `.staging-${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
+      crypto.randomUUID().replace(/-/g, "").slice(0, 16),
     );
     const finalPath = blobPath(dataDir, namespace, id, manifest.version);
 
