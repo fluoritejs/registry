@@ -11,12 +11,14 @@ storage:
   # Resolved paths at boot: <dataDir>/registry.sqlite, <dataDir>/blobs/
 
 admin:
-  firstUserBecomesAdmin: true
+  # First signups are not auto-promoted to admin. Provision an admin via
+  # bootstrapAccount below instead.
+  firstUserBecomesAdmin: false
 
-  # Only read when firstUserBecomesAdmin is false. Remove or leave null
-  # otherwise.
-  bootstrapAccount: null
-  # bootstrapAccount:
-  #   namespace: admin
-  #   password: change-me-immediately   # hashed on first boot, then discarded
-  #   displayName: Administrator
+  # Required when firstUserBecomesAdmin is false. The password is
+  # operator-generated before exposing the service; it is hashed on first
+  # boot, then discarded.
+  bootstrapAccount:
+    namespace: admin
+    password: change-me-immediately   # operator generated, hashed on first boot, then discarded
+    displayName: Administrator

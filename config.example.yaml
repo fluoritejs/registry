@@ -1,5 +1,5 @@
-# Settings that the server doesn't need to boot. Upon updating this file, the server
-# will refresh these settings automatically.
+# Settings that the server doesn't need to boot. After updating this file,
+# send SIGHUP to the server process for the settings to reload.
 
 auth:
   tokenTtl: 7d
