@@ -1,5 +1,5 @@
 export function versionJson(v, options = {}) {
-  let meta = {};
+  let meta;
   try {
     meta = JSON.parse(v.meta_json || "{}") ?? {};
   } catch {

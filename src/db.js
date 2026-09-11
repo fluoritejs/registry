@@ -496,7 +496,7 @@ export function getStmt(name) {
   return stmts[name];
 }
 
-export async function listVersionsByExtensionBatched(pairs) {
+export function listVersionsByExtensionBatched(pairs) {
   if (!pairs.length) return [];
   const clauses = pairs.map(
     (_, i) => `(u.namespace = $${i * 2 + 1} AND v.package_id = $${i * 2 + 2})`,
