@@ -17,6 +17,7 @@ import {
 import { getConfig, getDeployment } from "../config.js";
 import { isSafeSegment } from "../validate.js";
 import { log } from "../logger.js";
+import { loadManifest } from "../terms.js";
 
 const router = Router();
 
@@ -123,6 +124,17 @@ router.post("/signup", rateLimitMiddleware("signup"), (req, res) => {
     type,
     trusted,
   );
+
+  if (userCount === 0 && getDeployment().admin.firstUserBecomesAdmin) {
+    const { tosVersion, privacyVersion } = loadManifest(config.terms.dir);
+    getStmt("updateUserTermsAcceptance").run(
+      nowIso(),
+      tosVersion,
+      nowIso(),
+      privacyVersion,
+      user.id,
+    );
+  }
 
   const token = generateToken();
   const tokenHash = hashToken(token);

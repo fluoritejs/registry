@@ -40,6 +40,13 @@ webhooks:
   maxRetries: 3
   retryBackoffMs: 2000
 
+terms:
+  # Directory containing manifest.yaml, tos.md, and privacy.md.
+  dir: "./terms"
+  # When true, authenticated actions require accepting the current
+  # Terms of Service and Privacy Policy versions.
+  enforce: false
+
 server:
   shutdownTimeoutMs: 5000
   shutdownTimeoutMaxMs: 9000

@@ -32,6 +32,11 @@
 - In-app notifications on version approve/reject/publish with read/unread tracking and an `X-Unread-Notifications` header on authenticated responses
 - Extensible webhook system firing on version lifecycle events (`version.published`, `version.pending`, `version.approved`, `version.rejected`, `version.yanked`) with HMAC-SHA256 signatures and automatic retries with backoff
 
+**Legal & Compliance**
+
+- Optional Terms of Service and Privacy Policy served from versioned markdown files, with per-user acceptance tracking and forced re-acceptance when documents change
+- Admin endpoints to publish documents and bump versions; enforcement is toggleable and exempts automation tokens
+
 **Admin & User Management**
 
 - Admin bootstrap (`firstUserBecomesAdmin` or a configured `bootstrapAccount`), role and trusted-status management, and direct user creation

@@ -94,6 +94,14 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
+    TermsAcceptanceRequired:
+      description: >-
+        The user has not accepted the current Terms of Service and Privacy
+        Policy versions. Call POST /terms/accept with the current versions.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
 
   schemas:
     Error:
@@ -131,6 +139,18 @@ components:
           description: >-
             Whether this user's publishes are auto-approved (true after their
             first-ever publish has been reviewed and approved).
+        tosAcceptedAt:
+          type: string
+          description: ISO timestamp of Terms of Service acceptance, or empty.
+        tosVersion:
+          type: string
+          description: Accepted Terms of Service version, or empty.
+        privacyAcceptedAt:
+          type: string
+          description: ISO timestamp of Privacy Policy acceptance, or empty.
+        privacyVersion:
+          type: string
+          description: Accepted Privacy Policy version, or empty.
 
     Session:
       type: object
@@ -1140,3 +1160,155 @@ paths:
           description: Deleted.
         "404":
           $ref: "#/components/responses/NotFound"
+
+  /terms:
+    get:
+      tags: [Open]
+      operationId: getTerms
+      summary: Get the Terms of Service as raw markdown.
+      security: []
+      responses:
+        "200":
+          description: Terms of Service markdown with an X-Terms-Version header.
+          headers:
+            X-Terms-Version:
+              schema:
+                type: string
+              description: Current Terms of Service version.
+          content:
+            text/markdown:
+              schema:
+                type: string
+        "404":
+          description: No terms have been published.
+
+  /privacy:
+    get:
+      tags: [Open]
+      operationId: getPrivacy
+      summary: Get the Privacy Policy as raw markdown.
+      security: []
+      responses:
+        "200":
+          description: Privacy Policy markdown with an X-Terms-Version header.
+          headers:
+            X-Terms-Version:
+              schema:
+                type: string
+              description: Current Privacy Policy version.
+          content:
+            text/markdown:
+              schema:
+                type: string
+        "404":
+          description: No privacy policy has been published.
+
+  /terms/accept:
+    post:
+      tags: [Userspace]
+      operationId: acceptTerms
+      summary: >-
+        Record acceptance of the current Terms of Service and Privacy Policy
+        versions. Session tokens only; automation tokens are rejected.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tosVersion, privacyVersion]
+              properties:
+                tosVersion:
+                  type: string
+                privacyVersion:
+                  type: string
+      responses:
+        "200":
+          description: Acceptance recorded.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        "400":
+          description: Supplied version does not match the current one.
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /admin/terms:
+    patch:
+      tags: [Adminspace]
+      operationId: updateTerms
+      summary: >-
+        Replace the Terms of Service content and set a new version. The request
+        body is raw markdown; the version is a required query parameter.
+      parameters:
+        - name: version
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          text/markdown:
+            schema:
+              type: string
+      responses:
+        "200":
+          description: Terms updated.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [version]
+                properties:
+                  version:
+                    type: string
+                  path:
+                    type: string
+        "400":
+          description: Version query parameter or content missing.
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /admin/privacy:
+    patch:
+      tags: [Adminspace]
+      operationId: updatePrivacy
+      summary: >-
+        Replace the Privacy Policy content and set a new version. The request
+        body is raw markdown; the version is a required query parameter.
+      parameters:
+        - name: version
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          text/markdown:
+            schema:
+              type: string
+      responses:
+        "200":
+          description: Privacy policy updated.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [version]
+                properties:
+                  version:
+                    type: string
+                  path:
+                    type: string
+        "400":
+          description: Version query parameter or content missing.
+        "403":
+          $ref: "#/components/responses/Forbidden"

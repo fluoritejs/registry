@@ -43,13 +43,17 @@ Create a new account. Rate-limited by IP.
     "namespace": "myname",
     "displayName": "My Name",
     "type": "admin",
-    "trusted": true
+    "trusted": true,
+    "tosAcceptedAt": "",
+    "tosVersion": "",
+    "privacyAcceptedAt": "",
+    "privacyVersion": ""
   },
   "token": "abc123..."
 }
 ```
 
-`type` is `"admin"` and `trusted` is `true` when this is the first user and `firstUserBecomesAdmin` is enabled.
+`type` is `"admin"` and `trusted` is `true` when this is the first user and `firstUserBecomesAdmin` is enabled. The four terms fields record which Terms of Service / Privacy Policy versions this user has accepted and when. When terms enforcement is enabled, a first (admin) user is auto-accepted.
 
 **Errors:** 400 (`VALIDATION_ERROR`), 409 (`NAMESPACE_TAKEN`), 429 (`RATE_LIMITED`)
 
@@ -721,6 +725,82 @@ Public. Returns aggregate registry statistics.
 
 ---
 
+## Legal — `/v0/terms`, `/v0/privacy`
+
+Terms of Service and Privacy Policy documents are stored as markdown files on disk (see `terms.dir` in configuration). Each document has a version string; when a version changes, users must re-accept before using authenticated features. Enforcement is optional and controlled by `terms.enforce`.
+
+When enforcement is enabled (`terms.enforce: true`) and the user has not accepted the current versions, authenticated endpoints return:
+
+```json
+{
+  "error": {
+    "code": "TERMS_ACCEPTANCE_REQUIRED",
+    "message": "You must accept the current terms of service and privacy policy.",
+    "field": null
+  }
+}
+```
+
+Automation tokens are exempt from terms enforcement; compliance is the responsibility of the token owner.
+
+### GET /v0/terms
+
+Public. Returns the Terms of Service as raw markdown.
+
+**Response 200:** `Content-Type: text/markdown`, `X-Terms-Version` header carries the current version.
+
+**Response 404:** `TERMS_NOT_FOUND` if no terms have been published.
+
+### GET /v0/privacy
+
+Public. Returns the Privacy Policy as raw markdown. Same headers and error behavior as `GET /v0/terms`.
+
+### POST /v0/terms/accept
+
+Requires a session token. Records acceptance of the current terms and privacy versions.
+
+**Body:**
+
+```json
+{ "tosVersion": "2026-09-01", "privacyVersion": "2026-09-01" }
+```
+
+Both versions must match the current versions from the manifest. Automation tokens are rejected (`FORBIDDEN`).
+
+**Response 200:**
+
+```json
+{ "success": true }
+```
+
+**Response 400:** `INVALID_TERMS_VERSION` when a supplied version does not match the current one.
+
+### PATCH /v0/admin/terms
+
+Requires admin. Replaces the Terms of Service content and sets a new version. The body is raw markdown; pass the version as a query parameter.
+
+```
+PATCH /v0/admin/terms?version=2026-09-01
+Content-Type: text/markdown
+
+# Terms of Service
+...
+```
+
+**Response 200:**
+
+```json
+{ "version": "2026-09-01", "path": "/data/terms/tos.md" }
+```
+
+**Response 400:** `VALIDATION_ERROR` when `version` is missing or the body is empty.
+
+### PATCH /v0/admin/privacy
+
+Requires admin. Same behavior as `PATCH /v0/admin/terms`, for the Privacy Policy.
+
+---
+
 ## Pagination
 
 List endpoints use cursor-based pagination. Pass `limit` and `cursor` as query params. The response includes `nextCursor` (base64-encoded) when more pages exist. Pass it as the `cursor` param on the next request.
@@ -744,12 +824,15 @@ All errors follow this shape:
 | 400         | `VALIDATION_ERROR`       | Bad request body or params               |
 | 400         | `INVALID_MANIFEST`       | Source has no valid Fluorite manifest    |
 | 400         | `MANIFEST_MISMATCH`      | Manifest ID doesn't match URL            |
+| 400         | `INVALID_TERMS_VERSION`  | Supplied version doesn't match current   |
 | 401         | `UNAUTHORIZED`           | Missing or invalid token                 |
 | 401         | `TOKEN_EXPIRED`          | Session token has expired                |
 | 403         | `FORBIDDEN`              | Insufficient permissions                 |
+| 403         | `TERMS_ACCEPTANCE_REQUIRED` | Terms not accepted                      |
 | 403         | `VERSION_PENDING_REVIEW` | Already have a pending version           |
 | 404         | `NOT_FOUND`              | Resource doesn't exist                   |
 | 404         | `BLOB_MISSING`           | Version exists but compiled file is gone |
+| 404         | `TERMS_NOT_FOUND`        | Terms/privacy document not published     |
 | 409         | `VERSION_EXISTS`         | That version number already exists       |
 | 409         | `NAMESPACE_TAKEN`        | Namespace is already registered          |
 | 429         | `RATE_LIMITED`           | Too many requests                        |

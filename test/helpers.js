@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import express from "express";
@@ -8,9 +8,12 @@ import { setLevel } from "../src/logger.js";
 import {
   authMiddleware,
   optionalAuthMiddleware,
+  termsMiddleware,
   clearRateLimits,
   hashPassword,
+  nowIso,
 } from "../src/auth.js";
+import { loadManifest } from "../src/terms.js";
 
 import authRoutes from "../src/routes/auth.js";
 import userRoutes from "../src/routes/users.js";
@@ -19,13 +22,35 @@ import versionRoutes from "../src/routes/versions.js";
 import webhookRoutes from "../src/routes/webhooks.js";
 import notificationRoutes from "../src/routes/notifications.js";
 import statsRoutes from "../src/routes/stats.js";
+import termsRoutes from "../src/routes/terms.js";
 
 export function createTestEnv(deploymentOverrides = {}, configOverrides = {}) {
   clearRateLimits();
   const dataDir = mkdtempSync(join(tmpdir(), "fluorite-test-"));
-  const config = loadConfig(configOverrides);
+  const termsOverride = configOverrides.terms || {};
+  const config = loadConfig({
+    ...configOverrides,
+    terms: {
+      dir: join(dataDir, "terms"),
+      enforce: termsOverride.enforce ?? false,
+    },
+  });
   setConfig(config);
   setLevel("error");
+
+  const termsDir = join(dataDir, "terms");
+  mkdirSync(termsDir, { recursive: true });
+  writeFileSync(
+    join(termsDir, "manifest.yaml"),
+    "tosVersion: test-tos\nprivacyVersion: test-privacy\n",
+    "utf8",
+  );
+  writeFileSync(join(termsDir, "tos.md"), "# Test Terms of Service", "utf8");
+  writeFileSync(
+    join(termsDir, "privacy.md"),
+    "# Test Privacy Policy",
+    "utf8",
+  );
 
   const dbPath = join(dataDir, "registry.sqlite");
   const db = openDb(dbPath);
@@ -51,11 +76,21 @@ export function createTestEnv(deploymentOverrides = {}, configOverrides = {}) {
         "admin",
         1,
       );
+      const created = getStmt("getUserByNamespace").get(bootstrap.namespace);
+      const { tosVersion, privacyVersion } = loadManifest(config.terms.dir);
+      getStmt("updateUserTermsAcceptance").run(
+        nowIso(),
+        tosVersion,
+        nowIso(),
+        privacyVersion,
+        created.id,
+      );
     }
   }
 
   const app = express();
   app.use(express.raw({ type: "application/javascript", limit: "1mb" }));
+  app.use(express.raw({ type: "text/markdown", limit: "1mb" }));
   app.use(express.json());
 
   app.use(
@@ -67,14 +102,36 @@ export function createTestEnv(deploymentOverrides = {}, configOverrides = {}) {
       if (isPublic) return next();
       authMiddleware(req, res, next);
     },
+    termsMiddleware,
     authRoutes,
   );
-  app.use("/v0/users", optionalAuthMiddleware, userRoutes);
-  app.use("/v0/extensions", optionalAuthMiddleware, extensionRoutes);
+  app.use(
+    "/v0",
+    (req, res, next) => {
+      const termPaths = [
+        "/terms",
+        "/privacy",
+        "/terms/accept",
+        "/admin/terms",
+        "/admin/privacy",
+      ];
+      if (!termPaths.includes(req.path)) return next();
+      if (req.method === "GET") return next();
+      authMiddleware(req, res, next);
+    },
+    termsRoutes,
+  );
+  app.use("/v0/users", optionalAuthMiddleware, termsMiddleware, userRoutes);
+  app.use(
+    "/v0/extensions",
+    optionalAuthMiddleware,
+    termsMiddleware,
+    extensionRoutes,
+  );
   app.use("/v0/stats", statsRoutes);
-  app.use("/v0/versions", authMiddleware, versionRoutes);
-  app.use("/v0/webhooks", authMiddleware, webhookRoutes);
-  app.use("/v0/notifications", authMiddleware, notificationRoutes);
+  app.use("/v0/versions", authMiddleware, termsMiddleware, versionRoutes);
+  app.use("/v0/webhooks", authMiddleware, termsMiddleware, webhookRoutes);
+  app.use("/v0/notifications", authMiddleware, termsMiddleware, notificationRoutes);
 
   return {
     app,

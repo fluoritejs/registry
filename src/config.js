@@ -36,6 +36,7 @@ const CONFIG_DEFAULTS = {
     encryptionKey: "",
   },
   server: { shutdownTimeoutMs: 5000, shutdownTimeoutMaxMs: 9000 },
+  terms: { dir: "./terms", enforce: false },
   logging: { level: "info" },
 };
 

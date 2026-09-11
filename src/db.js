@@ -19,7 +19,11 @@ export function migrate(db) {
       display_name TEXT NOT NULL DEFAULT '',
       password_hash TEXT NOT NULL DEFAULT '',
       type TEXT NOT NULL DEFAULT 'normal',
-      trusted INTEGER NOT NULL DEFAULT 0
+      trusted INTEGER NOT NULL DEFAULT 0,
+      tos_accepted_at TEXT DEFAULT '',
+      tos_version TEXT DEFAULT '',
+      privacy_accepted_at TEXT DEFAULT '',
+      privacy_version TEXT DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS auth_tokens (
@@ -78,14 +82,6 @@ export function migrate(db) {
       created_at TEXT NOT NULL
     );
   `);
-
-  const webhookCols = db.prepare("PRAGMA table_info(webhooks)").all();
-  if (webhookCols.some((c) => c.name === "secret_hash")) {
-    db.exec("ALTER TABLE webhooks RENAME COLUMN secret_hash TO secret_encrypted");
-  }
-  if (webhookCols.some((c) => c.name === "secret")) {
-    db.exec("ALTER TABLE webhooks RENAME COLUMN secret TO secret_encrypted");
-  }
 }
 
 export function blobPath(dataDir, owner, packageId, version) {
@@ -183,6 +179,10 @@ export function prepare(db) {
   s(
     "updateUserTrust",
     "UPDATE users SET trusted = ? WHERE namespace = ? RETURNING *",
+  );
+  s(
+    "updateUserTermsAcceptance",
+    "UPDATE users SET tos_accepted_at = ?, tos_version = ?, privacy_accepted_at = ?, privacy_version = ? WHERE id = ? RETURNING *",
   );
   s("listUsers", "SELECT * FROM users ORDER BY id ASC LIMIT ? OFFSET ?");
   s("countUsers", "SELECT COUNT(*) as count FROM users");

@@ -19,8 +19,11 @@ import { setLevel, log } from "./logger.js";
 import {
   authMiddleware,
   optionalAuthMiddleware,
+  termsMiddleware,
   hashPassword,
+  nowIso,
 } from "./auth.js";
+import { loadManifest } from "./terms.js";
 import { join } from "node:path";
 
 import authRoutes from "./routes/auth.js";
@@ -30,6 +33,7 @@ import versionRoutes from "./routes/versions.js";
 import webhookRoutes from "./routes/webhooks.js";
 import notificationRoutes from "./routes/notifications.js";
 import statsRoutes from "./routes/stats.js";
+import termsRoutes from "./routes/terms.js";
 
 const deployment = loadDeployment();
 setDeployment(deployment);
@@ -61,6 +65,17 @@ if (
       "admin",
       1,
     );
+    const created = getStmt("getUserByNamespace").get(
+      deployment.admin.bootstrapAccount.namespace,
+    );
+    const { tosVersion, privacyVersion } = loadManifest(config.terms.dir);
+    getStmt("updateUserTermsAcceptance").run(
+      nowIso(),
+      tosVersion,
+      nowIso(),
+      privacyVersion,
+      created.id,
+    );
     log.info(
       `Bootstrap admin account created: ${deployment.admin.bootstrapAccount.namespace}`,
     );
@@ -86,6 +101,7 @@ app.use((req, res, next) => {
 });
 
 app.use(express.raw({ type: "application/javascript", limit: "1mb" }));
+app.use(express.raw({ type: "text/markdown", limit: "1mb" }));
 app.use(express.json());
 
 app.use((req, res, next) => {
@@ -107,18 +123,37 @@ app.use(
     if (isPublic) return next();
     authMiddleware(req, res, next);
   },
+  termsMiddleware,
   authRoutes,
 );
 
+// Terms routes: public GET /terms and /privacy, authenticated everything else
+app.use(
+  "/v0",
+  (req, res, next) => {
+    const termPaths = [
+      "/terms",
+      "/privacy",
+      "/terms/accept",
+      "/admin/terms",
+      "/admin/privacy",
+    ];
+    if (!termPaths.includes(req.path)) return next();
+    if (req.method === "GET") return next();
+    authMiddleware(req, res, next);
+  },
+  termsRoutes,
+);
+
 // Public routes
-app.use("/v0/users", optionalAuthMiddleware, userRoutes);
-app.use("/v0/extensions", optionalAuthMiddleware, extensionRoutes);
+app.use("/v0/users", optionalAuthMiddleware, termsMiddleware, userRoutes);
+app.use("/v0/extensions", optionalAuthMiddleware, termsMiddleware, extensionRoutes);
 app.use("/v0/stats", statsRoutes);
 
 // Authenticated routes
-app.use("/v0/versions", authMiddleware, versionRoutes);
-app.use("/v0/webhooks", authMiddleware, webhookRoutes);
-app.use("/v0/notifications", authMiddleware, notificationRoutes);
+app.use("/v0/versions", authMiddleware, termsMiddleware, versionRoutes);
+app.use("/v0/webhooks", authMiddleware, termsMiddleware, webhookRoutes);
+app.use("/v0/notifications", authMiddleware, termsMiddleware, notificationRoutes);
 
 app.use((err, req, res, _next) => {
   log.error(`Unhandled error: ${err.message}`);

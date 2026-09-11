@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { getConfig } from "./config.js";
 import { getStmt } from "./db.js";
+import { loadManifest } from "./terms.js";
 
 export function hashPassword(password) {
   const cfg = getConfig().auth.passwordHashing;
@@ -53,6 +54,10 @@ function successResponse(res, user, token, config) {
       displayName: user.display_name,
       type: user.type,
       trusted: !!user.trusted,
+      tosAcceptedAt: user.tos_accepted_at || "",
+      tosVersion: user.tos_version || "",
+      privacyAcceptedAt: user.privacy_accepted_at || "",
+      privacyVersion: user.privacy_version || "",
     },
     token,
   };
@@ -64,6 +69,10 @@ function userJson(user) {
     displayName: user.display_name,
     type: user.type,
     trusted: !!user.trusted,
+    tosAcceptedAt: user.tos_accepted_at || "",
+    tosVersion: user.tos_version || "",
+    privacyAcceptedAt: user.privacy_accepted_at || "",
+    privacyVersion: user.privacy_version || "",
   };
 }
 
@@ -277,6 +286,31 @@ export function scopeMiddleware(scope) {
     }
     next();
   };
+}
+
+export function termsMiddleware(req, res, next) {
+  if (!req.auth) return next();
+  if (req.auth.tokenKind === "automation") return next();
+  const config = getConfig();
+  if (config.terms?.enforce !== true) return next();
+  const { tosVersion, privacyVersion } = loadManifest(config.terms.dir);
+  if (!tosVersion && !privacyVersion) return next();
+  if (
+    req.auth.user.tos_version === tosVersion &&
+    req.auth.user.privacy_version === privacyVersion
+  ) {
+    return next();
+  }
+  return res
+    .status(403)
+    .json({
+      error: {
+        code: "TERMS_ACCEPTANCE_REQUIRED",
+        message:
+          "You must accept the current terms of service and privacy policy.",
+        field: null,
+      },
+    });
 }
 
 export { successResponse, userJson, rateLimitStore };
