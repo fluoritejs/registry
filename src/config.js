@@ -244,7 +244,7 @@ export function reloadConfig() {
   if (currentConfig) {
     const activeKey = currentConfig.webhooks?.encryptionKey;
     const freshKey = fresh.webhooks?.encryptionKey;
-    if (activeKey && freshKey !== activeKey) {
+    if (freshKey !== activeKey) {
       log.warn(
         "SIGHUP reload: webhooks.encryptionKey changed in config; ignoring to preserve active key until decrypt-and-re-encrypt rotation is implemented.",
       );
