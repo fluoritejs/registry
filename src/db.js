@@ -336,24 +336,30 @@ export function prepare(db) {
 
   s(
     "listExtensionIdentities",
-    `SELECT DISTINCT u.namespace, v.package_id FROM versions v
+    `SELECT u.namespace, v.package_id, MAX(v.id) AS sort_key
+    FROM versions v
     JOIN users u ON v.owner_id = u.id
     WHERE v.status = 'published' AND v.yanked = 0
-    ORDER BY v.id DESC
-    LIMIT ? OFFSET ?`,
+    GROUP BY u.namespace, v.package_id
+    HAVING sort_key < ?
+    ORDER BY sort_key DESC
+    LIMIT ?`,
   );
 
   s(
     "searchExtensionIdentities",
-    `SELECT DISTINCT u.namespace, v.package_id FROM versions v
+    `SELECT u.namespace, v.package_id, MAX(v.id) AS sort_key
+    FROM versions v
     JOIN users u ON v.owner_id = u.id
     WHERE v.status = 'published' AND v.yanked = 0
     AND (u.namespace LIKE '%' || ? || '%'
       OR v.package_id LIKE '%' || ? || '%'
       OR json_extract(v.meta_json, '$.name') LIKE '%' || ? || '%'
       OR json_extract(v.meta_json, '$.description') LIKE '%' || ? || '%')
-    ORDER BY v.id DESC
-    LIMIT ? OFFSET ?`,
+    GROUP BY u.namespace, v.package_id
+    HAVING sort_key < ?
+    ORDER BY sort_key DESC
+    LIMIT ?`,
   );
 
   s(

@@ -1,9 +1,10 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, mkdirSync, writeFileSync, existsSync } from "node:fs";
+import { join, dirname } from "node:path";
 import { createTestEnv, request, signup, authHeaders } from "./helpers.js";
 import { extractManifest } from "../src/manifest.js";
+import { getStmt, blobPath, reconcileStaging } from "../src/db.js";
 import { loadConfig, setConfig } from "../src/config.js";
 
 const VALID_SOURCE = readFileSync(
@@ -708,5 +709,75 @@ describe("Stats", () => {
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.published, 2);
     assert.strictEqual(res.body.authors, 2);
+  });
+});
+
+describe("Interrupted publish recovery", () => {
+  let env;
+
+  before(async () => {
+    env = createTestEnv();
+    await signup(env.app, "recoveruser", "password123");
+    await signup(env.app, "recoveruser2", "password123");
+  });
+
+  after(() => env.cleanup());
+
+  function insertStagingRow(namespace, packageId, version) {
+    const user = getStmt("getUserByNamespace").get(namespace);
+    const path = blobPath(
+      env.deployment.storage.dataDir,
+      namespace,
+      packageId,
+      version,
+    );
+    getStmt("createVersion").run(
+      user.id,
+      packageId,
+      version,
+      "staging",
+      JSON.stringify({
+        id: packageId,
+        name: "Interrupted",
+        version,
+        license: "MIT",
+        description: "d",
+      }),
+      path,
+      new Date().toISOString(),
+      null,
+    );
+    return path;
+  }
+
+  it("promotes a staging version whose artifact exists after a crash between rename and finalize", () => {
+    const path = insertStagingRow("recoveruser", "interrupted-ext", "1.0.0");
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, SAMPLE_SOURCE, "utf8");
+
+    reconcileStaging(env.db, env.deployment.storage.dataDir);
+
+    const v = getStmt("getVersion").get(
+      "recoveruser",
+      "interrupted-ext",
+      "1.0.0",
+    );
+    assert.ok(v, "staging row must be recovered, not deleted");
+    assert.strictEqual(v.status, "pending");
+    assert.strictEqual(v.blob_path, path);
+    assert.ok(existsSync(path), "renamed artifact must not be orphaned");
+  });
+
+  it("deletes a staging version with no artifact after a crash before the rename", () => {
+    insertStagingRow("recoveruser2", "interrupted-ext", "1.0.0");
+
+    reconcileStaging(env.db, env.deployment.storage.dataDir);
+
+    const v = getStmt("getVersion").get(
+      "recoveruser2",
+      "interrupted-ext",
+      "1.0.0",
+    );
+    assert.strictEqual(v, undefined, "orphaned staging row must be deleted");
   });
 });

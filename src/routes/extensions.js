@@ -19,7 +19,11 @@ import {
   adminMiddleware,
 } from "../auth.js";
 import { getConfig, getDeployment } from "../config.js";
-import { parseCursor, encodeCursor, parseLimit } from "../pagination.js";
+import {
+  parseKeysetCursor,
+  encodeKeysetCursor,
+  parseLimit,
+} from "../pagination.js";
 import { fireWebhooks } from "../webhooks.js";
 import { log } from "../logger.js";
 
@@ -97,22 +101,26 @@ router.get("/", (req, res) => {
   const maxPageSize = config.listings.maxPageSize;
   const defaultSize = config.listings.defaultPageSize;
   const limit = parseLimit(req.query, defaultSize, maxPageSize);
-  const offset = parseCursor(req.query);
+  const after = parseKeysetCursor(req.query) ?? Number.MAX_SAFE_INTEGER;
   const q = req.query.q;
 
   const identities = q
-    ? getStmt("searchExtensionIdentities").all(q, q, q, q, limit, offset)
-    : getStmt("listExtensionIdentities").all(limit, offset);
+    ? getStmt("searchExtensionIdentities").all(q, q, q, q, after, limit + 1)
+    : getStmt("listExtensionIdentities").all(after, limit + 1);
+
+  const hasMore = identities.length > limit;
+  const page = hasMore ? identities.slice(0, limit) : identities;
 
   const allRows = [];
-  for (const { namespace, package_id } of identities) {
+  for (const { namespace, package_id } of page) {
     const rows = getStmt("listVersionsByExtension").all(namespace, package_id);
     allRows.push(...rows);
   }
 
   const extensions = aggregateExtensions(allRows);
-  const nextCursor =
-    identities.length === limit ? encodeCursor(offset + limit) : null;
+  const nextCursor = hasMore
+    ? encodeKeysetCursor(page[page.length - 1].sort_key)
+    : null;
 
   res.json({ extensions, nextCursor });
 });
@@ -370,7 +378,7 @@ router.post(
           manifest.version,
           "staging",
           JSON.stringify(manifest),
-          stagingPath,
+          finalPath,
           nowIso(),
           null,
         );
