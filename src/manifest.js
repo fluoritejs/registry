@@ -73,20 +73,57 @@ function findManifestObject(stmts) {
   return found;
 }
 
-function nestedStatements(node, out) {
-  const push = (n) => {
-    if (n && typeof n === "object") {
-      if (
-        n.type === "FunctionDeclaration" ||
-        n.type === "FunctionExpression" ||
-        n.type === "ArrowFunctionExpression"
-      ) {
-        if (n.body?.type === "BlockStatement") out.push(n.body.body);
-      }
+const MAX_WALK_DEPTH = 4;
+
+function statementsIn(node, depth, out) {
+  if (!node || depth > MAX_WALK_DEPTH) return;
+  if (node.type === "ParenthesizedExpression") {
+    statementsIn(node.expression, depth + 1, out);
+    return;
+  }
+  if (
+    node.type === "FunctionDeclaration" ||
+    node.type === "FunctionExpression" ||
+    node.type === "ArrowFunctionExpression"
+  ) {
+    if (node.body?.type === "BlockStatement") out.push(node.body.body);
+    return;
+  }
+  if (node.type === "CallExpression") {
+    statementsIn(node.callee, depth + 1, out);
+    return;
+  }
+  if (node.type === "UnaryExpression") {
+    statementsIn(node.argument, depth + 1, out);
+    return;
+  }
+  if (node.type === "SequenceExpression" && node.expressions?.length) {
+    statementsIn(
+      node.expressions[node.expressions.length - 1],
+      depth + 1,
+      out,
+    );
+    return;
+  }
+  if (node.type === "MemberExpression") {
+    const propName =
+      node.property?.type === "Identifier"
+        ? node.property.name
+        : node.property?.type === "Literal"
+          ? node.property.value
+          : null;
+    if (propName === "call" || propName === "apply") {
+      statementsIn(node.object, depth + 1, out);
     }
-  };
-  push(node.expression?.callee ?? node);
-  return out;
+  }
+}
+
+function nestedStatements(node, out) {
+  statementsIn(
+    node.type === "ExpressionStatement" ? node.expression : node,
+    0,
+    out,
+  );
 }
 
 export function extractManifest(source, packageIdPattern) {
@@ -112,33 +149,35 @@ export function extractManifest(source, packageIdPattern) {
 
   for (const stmts of containers) {
     const obj = findManifestObject(stmts);
-    if (obj && obj.type === "ObjectExpression") {
-      const id = extractProperty(obj, "id");
-      const name = extractProperty(obj, "name");
-      const version = extractProperty(obj, "version");
-      const license = extractProperty(obj, "license");
-      const description = extractProperty(obj, "description");
+    if (!obj || obj.type !== "ObjectExpression") continue;
+    const id = extractProperty(obj, "id");
+    const name = extractProperty(obj, "name");
+    const version = extractProperty(obj, "version");
+    const license = extractProperty(obj, "license");
+    const description = extractProperty(obj, "description");
 
-      if (id && name && version) {
-        const pkgRe = new RegExp(packageIdPattern);
-        if (!isSafeSegment(id)) {
-          throw new Error(`Invalid extension id: ${id}`);
-        }
-        if (!pkgRe.test(id)) {
-          throw new Error(`Invalid extension id: ${id}`);
-        }
-        if (!semver.valid(version)) {
-          throw new Error(`Invalid version: ${version}`);
-        }
-        return {
-          id,
-          name,
-          version,
-          license: license || "",
-          description: description || "",
-        };
-      }
+    if (!id || !name || !version) {
+      throw new Error(
+        "Fluorite manifest is missing required fields (id, name, version)",
+      );
     }
+    const pkgRe = new RegExp(packageIdPattern);
+    if (!isSafeSegment(id)) {
+      throw new Error(`Invalid extension id: ${id}`);
+    }
+    if (!pkgRe.test(id)) {
+      throw new Error(`Invalid extension id: ${id}`);
+    }
+    if (!semver.valid(version)) {
+      throw new Error(`Invalid version: ${version}`);
+    }
+    return {
+      id,
+      name,
+      version,
+      license: license || "",
+      description: description || "",
+    };
   }
 
   throw new Error("No Fluorite manifest found in source");
