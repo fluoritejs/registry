@@ -9,6 +9,12 @@ import { log } from "../logger.js";
 
 const router = Router();
 
+const MAX_DISPLAY_NAME = 255;
+
+function invalidDisplayName(value) {
+  return typeof value !== "string" || value.length > MAX_DISPLAY_NAME;
+}
+
 router.get("/", async (req, res) => {
   const config = getConfig();
   const maxPageSize = config.listings.maxPageSize;
@@ -84,6 +90,17 @@ router.post("/", async (req, res) => {
           code: "NAMESPACE_TAKEN",
           message: "This namespace is already taken.",
           field: "namespace",
+        },
+      });
+  }
+  if (displayName !== undefined && invalidDisplayName(displayName)) {
+    return res
+      .status(400)
+      .json({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: `displayName must be a string of at most ${MAX_DISPLAY_NAME} characters.`,
+          field: "displayName",
         },
       });
   }
@@ -174,6 +191,17 @@ router.patch("/:namespace", async (req, res) => {
   }
 
   if (displayName !== undefined) {
+    if (invalidDisplayName(displayName)) {
+      return res
+        .status(400)
+        .json({
+          error: {
+            code: "VALIDATION_ERROR",
+            message: `displayName must be a string of at most ${MAX_DISPLAY_NAME} characters.`,
+            field: "displayName",
+          },
+        });
+    }
     await getStmt("updateUserDisplayName").run(displayName, target.namespace);
     updatedUser = await getStmt("getUserByNamespace").get(target.namespace);
   }
