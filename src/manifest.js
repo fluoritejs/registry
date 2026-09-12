@@ -15,7 +15,10 @@ function extractProperty(node, name) {
   }
   const prop = props[0];
   if (!prop) return undefined;
-  if (prop.value.type === "Literal") return prop.value.value;
+  if (prop.value.type === "Literal") {
+    const value = prop.value.value;
+    return typeof value === "string" ? value : undefined;
+  }
   return undefined;
 }
 
@@ -41,7 +44,7 @@ function findManifestObject(stmts) {
         left.property.type === "Identifier" &&
         isManifestKey(left.property.name)
       ) {
-        if (found) tooMany("manifest");
+        if (found) tooMany(left.property.name);
         found = node.expression.right;
       }
     }
@@ -60,9 +63,9 @@ function findManifestObject(stmts) {
                     : null;
               return isManifestKey(keyName);
             });
-            if (manifestProps.length > 1) tooMany("manifest");
+            if (manifestProps.length > 1) tooMany("fluorite object");
             if (manifestProps.length === 1) {
-              if (found) tooMany("manifest");
+              if (found) tooMany("fluorite object");
               found = manifestProps[0].value;
             }
           }
