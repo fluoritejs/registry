@@ -517,7 +517,7 @@ export function listVersionsByExtensionBatched(pairs) {
     (_, i) => `(u.namespace = $${i * 2 + 1} AND v.package_id = $${i * 2 + 2})`,
   );
   const args = pairs.flatMap((p) => [p.namespace, p.package_id]);
-  return base.unsafe(
+  return conn().unsafe(
     `SELECT v.*, u.namespace FROM versions v
     JOIN users u ON v.owner_id = u.id
     WHERE (${clauses.join(" OR ")}) AND v.status = 'published' AND v.yanked = 0
@@ -543,6 +543,7 @@ export async function deleteUserCascade(id) {
   await runTransaction(async () => {
     await conn().unsafe("SELECT id FROM users WHERE id = $1 FOR UPDATE", [id]);
     const target = await getStmt("getUserById").get(id);
+    if (!target) return { missing: true };
     if (target.type === "admin") {
       const { count } = await getStmt("countAdminsForUpdate").get();
       if (count <= 1) {

@@ -188,7 +188,7 @@ router.patch("/:namespace", requireSession, async (req, res) => {
   }
 
   let updatedUser = target;
-  let changed = false;
+  let passwordHash;
 
   if (password !== undefined) {
     if (typeof password !== "string" || password.length < 8) {
@@ -202,24 +202,28 @@ router.patch("/:namespace", requireSession, async (req, res) => {
           },
         });
     }
-    const hash = await hashPassword(password);
+    passwordHash = await hashPassword(password);
+  }
+
+  if (password !== undefined || displayName !== undefined) {
     await runTransaction(async () => {
-      await getStmt("updateUserPassword").run(hash, target.namespace);
-      await getStmt("deleteAllAuthTokens").run(target.id);
-      await getStmt("deleteAllAutomationTokens").run(target.id);
+      if (password !== undefined) {
+        await getStmt("updateUserPassword").run(passwordHash, target.namespace);
+        await getStmt("deleteAllAuthTokens").run(target.id);
+        await getStmt("deleteAllAutomationTokens").run(target.id);
+      }
+      if (displayName !== undefined) {
+        await getStmt("updateUserDisplayName").run(
+          displayName,
+          target.namespace,
+        );
+      }
     });
-    log.info(
-      `Password changed for ${target.namespace} — all sessions and tokens revoked`,
-    );
-    changed = true;
-  }
-
-  if (displayName !== undefined) {
-    await getStmt("updateUserDisplayName").run(displayName, target.namespace);
-    changed = true;
-  }
-
-  if (changed) {
+    if (password !== undefined) {
+      log.info(
+        `Password changed for ${target.namespace} — all sessions and tokens revoked`,
+      );
+    }
     updatedUser = await getStmt("getUserByNamespace").get(target.namespace);
   }
 
@@ -250,6 +254,13 @@ router.delete("/:namespace", requireSession, async (req, res) => {
   }
   try {
     const result = await deleteUserCascade(target.id);
+    if (result.missing) {
+      return res
+        .status(404)
+        .json({
+          error: { code: "NOT_FOUND", message: "User not found.", field: null },
+        });
+    }
     if (result.pending) {
       log.warn(
         `Account data deletion pending for ${target.namespace}: blobs left for retry`,
