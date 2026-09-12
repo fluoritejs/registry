@@ -140,6 +140,7 @@ router.post("/signup", rateLimitMiddleware("signup"), async (req, res) => {
   let type = "normal";
   let trusted = 0;
   const hash = await hashPassword(password);
+  const termsVersions = loadManifest(config.terms.dir);
   try {
     await runTransaction(async () => {
       await getStmt("lockSignupFirstAdmin").run();
@@ -160,12 +161,11 @@ router.post("/signup", rateLimitMiddleware("signup"), async (req, res) => {
       );
 
       if (firstAdmin) {
-        const { tosVersion, privacyVersion } = loadManifest(config.terms.dir);
         await getStmt("updateUserTermsAcceptance").run(
           nowIso(),
-          tosVersion,
+          termsVersions.tosVersion,
           nowIso(),
-          privacyVersion,
+          termsVersions.privacyVersion,
           user.id,
         );
       }
@@ -205,7 +205,12 @@ router.post("/signup", rateLimitMiddleware("signup"), async (req, res) => {
 router.post("/login", rateLimitMiddleware("login"), async (req, res) => {
   const { namespace, password } = req.body ?? {};
 
-  if (!namespace || typeof password !== "string" || !password) {
+  if (
+    typeof namespace !== "string" ||
+    !namespace ||
+    typeof password !== "string" ||
+    !password
+  ) {
     return res
       .status(401)
       .json({
