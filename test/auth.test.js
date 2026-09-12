@@ -45,8 +45,10 @@ describe("Auth", () => {
     it("failed signups do not count toward rate limit", async () => {
       const isolated = await createTestEnv();
       try {
+        const first = await signup(isolated.app, "testuser", "password123");
+        assert.strictEqual(first.status, 201);
         for (let i = 0; i < 10; i++) {
-          await signup(isolated.app, "testuser", "password123");
+          await signup(isolated.app, "testuser", "other-password");
         }
 
         const res = await signup(isolated.app, "newuser", "password123");

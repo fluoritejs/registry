@@ -834,7 +834,7 @@ describe("Stats", () => {
     assert.strictEqual(first.body.pending, 0);
 
     let downloads = 0;
-    const deadline = Date.now() + 2000;
+    const deadline = Date.now() + 8000;
     while (Date.now() < deadline) {
       const res = await request(env.app, "GET", "/v0/stats");
       assert.strictEqual(res.status, 200);

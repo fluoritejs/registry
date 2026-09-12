@@ -117,7 +117,7 @@ describe("Migration & recovery", () => {
     }
   });
 
-  it("promotes pending_delete versions that still have their blob", async () => {
+  it("deletes pending_delete versions that still have their blob", async () => {
     const dir = mkdtempSync(join(tmpdir(), "recovery-"));
     const { db, cleanup } = await openTestDb();
     try {
