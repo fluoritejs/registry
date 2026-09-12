@@ -7,6 +7,8 @@ import { log } from "./logger.js";
 import { getConfig } from "./config.js";
 
 const MAX_REDIRECTS = 5;
+const RETRY_BACKOFF_MAX_MS = 32000;
+const pinnedAgent = new https.Agent({ keepAlive: false });
 
 export function getEncryptionKey() {
   const key = getConfig().webhooks?.encryptionKey;
@@ -242,6 +244,7 @@ function attemptSend(url, body, headers, pinned, deadline) {
         method: "POST",
         headers,
         family: pinned.family,
+        agent: pinnedAgent,
         lookup: (_hostname, _options, cb) =>
           cb(null, pinned.address, pinned.family),
       },
@@ -376,7 +379,7 @@ export async function deliverWithRetry(wh, body, event, cfg = {}) {
   const deliveryCfg = {
     maxRetries: cfg.maxRetries ?? 0,
     deliveryTimeoutMs: cfg.deliveryTimeoutMs ?? 5000,
-    retryBackoffMs: cfg.retryBackoffMs ?? 0,
+    retryBackoffMs: cfg.retryBackoffMs ?? 2000,
     maxResponseBodySize: cfg.maxResponseBodySize ?? 1048576,
   };
 
@@ -418,7 +421,8 @@ export async function deliverWithRetry(wh, body, event, cfg = {}) {
     if (attempt < deliveryCfg.maxRetries) {
       const base = deliveryCfg.retryBackoffMs * 2 ** attempt;
       const jitter = Math.random() * deliveryCfg.retryBackoffMs;
-      await new Promise((r) => setTimeout(r, base + jitter));
+      const delay = Math.min(base + jitter, RETRY_BACKOFF_MAX_MS);
+      await new Promise((r) => setTimeout(r, delay));
     }
   }
 
