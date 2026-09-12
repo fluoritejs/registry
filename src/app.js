@@ -112,11 +112,19 @@ export function createApp() {
     } else {
       log.debug(`Request rejected (${status}): ${err.message}`);
     }
+    const code =
+      status === 500
+        ? "INTERNAL_ERROR"
+        : status === 413
+          ? "PAYLOAD_TOO_LARGE"
+          : status === 415
+            ? "UNSUPPORTED_MEDIA_TYPE"
+            : "BAD_REQUEST";
     res
       .status(status)
       .json({
         error: {
-          code: status === 500 ? "INTERNAL_ERROR" : "BAD_REQUEST",
+          code,
           message: status === 500 ? "An internal error occurred." : err.message,
           field: null,
         },
