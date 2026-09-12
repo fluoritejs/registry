@@ -127,6 +127,12 @@ process.on("SIGHUP", () => {
   }
 });
 
+server.on("error", (err) => {
+  if (shuttingDown) return;
+  log.error(`Server failed to start on port ${PORT}: ${err.message}`);
+  process.exit(1);
+});
+
 main()
   .then(() => {
     if (shuttingDown) return;
