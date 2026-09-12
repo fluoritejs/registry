@@ -1,6 +1,6 @@
 # Publishing Extensions
 
-Most of these things can be done with Fluorite Compiler. Note that you will need up to Fluorite Compiler v0.2.0 to perform registry-related actions.
+Most of these things can be done with Fluorite Compiler. Note that you will need at least Fluorite Compiler v0.2.0 to perform registry-related actions.
 
 ## Account Setup
 

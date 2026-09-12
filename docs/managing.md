@@ -7,7 +7,7 @@
 When `publishing.firstPublishRequiresReview: true`, new users' first publish goes to `pending` status. To review:
 
 ```bash
-# List all pending versions
+# List pending versions (page with nextCursor)
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
   "http://localhost:3000/v0/versions?status=pending"
 ```
@@ -120,6 +120,13 @@ Each webhook delivery includes an `X-Fluorite-Signature` header containing `sha2
 import crypto from "node:crypto";
 
 function verify(body, secretHex, signatureHeader) {
+  if (
+    typeof body !== "string" ||
+    typeof secretHex !== "string" ||
+    typeof signatureHeader !== "string"
+  ) {
+    return false;
+  }
   const expected =
     "sha256=" +
     crypto.createHmac("sha256", secretHex).update(body).digest("hex");
