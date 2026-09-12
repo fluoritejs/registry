@@ -489,6 +489,10 @@ export function prepare(db) {
     (SELECT COALESCE(SUM(downloads), 0)::int FROM versions WHERE status = 'published' AND yanked = 0) as "totalDownloads"`,
   );
 
+  // Terms document publishing
+  s("lockTermsDir", "SELECT pg_advisory_lock(hashtext($1)::bigint)");
+  s("unlockTermsDir", "SELECT pg_advisory_unlock(hashtext($1)::bigint)");
+
   return stmts;
 }
 
@@ -520,24 +524,33 @@ export async function runTransaction(fn) {
 }
 
 export async function deleteUserCascade(id) {
-  const blobs = [];
+  const versions = await getStmt("listVersionsByUser").all(id);
+  const failed = [];
+  for (const v of versions) {
+    if (v.blob_path && existsSync(v.blob_path)) {
+      try {
+        unlinkSync(v.blob_path);
+      } catch (err) {
+        failed.push(v.id);
+        log.warn(
+          `Failed to delete blob ${v.blob_path}, left pending for retry: ${err.message}`,
+        );
+      }
+    }
+  }
+  if (failed.length) {
+    await runTransaction(async () => {
+      for (const versionId of failed) {
+        await getStmt("markVersionDeletionPending").run(versionId);
+      }
+    });
+    return { pending: true };
+  }
   await runTransaction(async () => {
-    const versions = await getStmt("listVersionsByUser").all(id);
     for (const v of versions) {
-      if (v.blob_path) blobs.push({ versionId: v.id, path: v.blob_path });
       await getStmt("deleteVersion").run(v.id);
     }
     await conn().unsafe("DELETE FROM users WHERE id = $1", [id]);
   });
-
-  for (const { versionId, path } of blobs) {
-    try {
-      if (existsSync(path)) unlinkSync(path);
-    } catch (err) {
-      await getStmt("markVersionDeletionPending").run(versionId);
-      log.warn(
-        `Failed to delete blob ${path}, left pending for retry: ${err.message}`,
-      );
-    }
-  }
+  return { pending: false };
 }

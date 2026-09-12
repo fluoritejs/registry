@@ -259,7 +259,19 @@ router.delete("/:namespace", async (req, res) => {
       });
   }
   try {
-    await deleteUserCascade(target.id);
+    const result = await deleteUserCascade(target.id);
+    if (result.pending) {
+      log.warn(
+        `Account data deletion pending for ${target.namespace}: blobs left for retry`,
+      );
+      return res
+        .status(202)
+        .json({
+          pending: true,
+          message:
+            "Some blobs could not be removed; deletions remain pending for retry.",
+        });
+    }
   } catch (err) {
     log.error(
       `Failed to delete account data for ${target.namespace}: ${err.message}`,
