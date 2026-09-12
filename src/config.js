@@ -115,7 +115,14 @@ function parseDuration(s) {
 
 function loadYaml(path) {
   try {
-    return yaml.load(readFileSync(path, "utf8")) || {};
+    const doc = yaml.load(readFileSync(path, "utf8"));
+    if (doc === null || doc === undefined) return {};
+    if (typeof doc !== "object" || Array.isArray(doc)) {
+      throw new Error(
+        `Configuration error: ${path} must contain a YAML mapping at its root.`,
+      );
+    }
+    return doc;
   } catch (err) {
     if (err.code === "ENOENT") return {};
     throw err;
