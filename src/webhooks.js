@@ -170,6 +170,9 @@ export function isRestrictedIp(host) {
         `${bytes[12]}.${bytes[13]}.${bytes[14]}.${bytes[15]}`,
       );
     }
+    if (bytes[0] === 0x20 && bytes[1] === 0x02) {
+      return isRestrictedIp(`${bytes[2]}.${bytes[3]}.${bytes[4]}.${bytes[5]}`);
+    }
     if (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0x80) return true;
     if ((bytes[0] & 0xfe) === 0xfc) return true;
     return false;
@@ -394,6 +397,12 @@ export async function deliverWithRetry(wh, body, event, cfg = {}) {
   }
 
   log.error(`Webhook delivery to ${wh.url} exhausted retries`);
+}
+
+export function dispatchWebhooks(event, payload) {
+  fireWebhooks(event, payload).catch((err) => {
+    log.error(`Webhook dispatch for ${event} failed: ${err.message}`);
+  });
 }
 
 const MAX_CONCURRENT_DELIVERIES = 8;
