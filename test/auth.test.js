@@ -43,12 +43,17 @@ describe("Auth", () => {
     });
 
     it("failed signups do not count toward rate limit", async () => {
-      for (let i = 0; i < 10; i++) {
-        await signup(env.app, "testuser", "password123");
-      }
+      const isolated = await createTestEnv();
+      try {
+        for (let i = 0; i < 10; i++) {
+          await signup(isolated.app, "testuser", "password123");
+        }
 
-      const res = await signup(env.app, "newuser", "password123");
-      assert.strictEqual(res.status, 201);
+        const res = await signup(isolated.app, "newuser", "password123");
+        assert.strictEqual(res.status, 201);
+      } finally {
+        isolated.cleanup();
+      }
     });
   });
 
@@ -278,6 +283,24 @@ describe("Auth", () => {
       assert.strictEqual(res.status, 200);
       assert.ok(Array.isArray(res.body));
       assert.ok(res.body.length >= 1);
+    });
+
+    it("rejects automation tokens on session-only user routes", async () => {
+      const autoRes = await request(env.app, "POST", "/v0/auth/tokens", {
+        body: JSON.stringify({ name: "CI", scopes: ["publish"] }),
+        headers: { ...authHeaders(token), "Content-Type": "application/json" },
+      });
+      const autoToken = autoRes.body.token;
+
+      const res = await request(env.app, "PATCH", "/v0/users/autotoken", {
+        body: JSON.stringify({ displayName: "Nope" }),
+        headers: {
+          ...authHeaders(autoToken),
+          "Content-Type": "application/json",
+        },
+      });
+      assert.strictEqual(res.status, 403);
+      assert.strictEqual(res.body.error.code, "FORBIDDEN");
     });
   });
 
