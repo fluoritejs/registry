@@ -34,7 +34,7 @@ async function main() {
   log.info("Database schema up to date");
 
   cleanupTempBlobs(deployment.storage.dataDir);
-  await reconcileStaging(db, deployment.storage.dataDir);
+  await reconcileStaging(db);
 
   if (
     !deployment.admin.firstUserBecomesAdmin &&
@@ -47,15 +47,12 @@ async function main() {
       const hash = await hashPassword(
         deployment.admin.bootstrapAccount.password,
       );
-      await getStmt("createUser").run(
+      const created = await getStmt("createUser").get(
         deployment.admin.bootstrapAccount.namespace,
         deployment.admin.bootstrapAccount.displayName || "Administrator",
         hash,
         "admin",
         1,
-      );
-      const created = await getStmt("getUserByNamespace").get(
-        deployment.admin.bootstrapAccount.namespace,
       );
       const { tosVersion, privacyVersion } = loadManifest(config.terms.dir);
       await getStmt("updateUserTermsAcceptance").run(
@@ -98,12 +95,16 @@ function shutdown() {
 
   server.close(async () => {
     log.info("HTTP server closed");
+    let code = 0;
     try {
       await db.end();
       log.info("Database connections closed");
+    } catch (err) {
+      log.error(`Failed to close database connections: ${err.message}`);
+      code = 1;
     } finally {
       clearTimeout(forceExit);
-      process.exit(0);
+      process.exit(code);
     }
   });
   server.closeIdleConnections();

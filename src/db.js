@@ -140,7 +140,7 @@ export function stagingBlobPath(dataDir, owner, packageId, version, nonce) {
   );
 }
 
-export async function reconcileStaging(db, dataDir) {
+export async function reconcileStaging(db) {
   const staging = await db.unsafe(
     "SELECT id, owner_id, package_id, version, blob_path, status FROM versions WHERE status IN ('staging', 'pending_delete')",
   );
@@ -169,7 +169,7 @@ export async function reconcileStaging(db, dataDir) {
         );
       } catch (err) {
         log.warn(
-          `Blob still locked for ${row.blob_path}, keeping ${row.package_id}@${row.version} for retry`,
+          `Blob still locked for ${row.blob_path}, keeping ${row.package_id}@${row.version} for retry: ${err.message}`,
         );
       }
     }
@@ -204,11 +204,6 @@ export function cleanupTempBlobs(dataDir) {
 
 const stmts = {};
 
-function numberParams(sql) {
-  let n = 0;
-  return sql.replace(/\?/g, () => `$${++n}`);
-}
-
 function conn() {
   const store = txStore.getStore();
   return (store && store.tx) || base;
@@ -233,7 +228,7 @@ function defineStatement(sql) {
 export function prepare(db) {
   base = db;
   const s = (name, sql) => {
-    stmts[name] = defineStatement(numberParams(sql));
+    stmts[name] = defineStatement(sql);
   };
 
   // Users
@@ -266,8 +261,8 @@ export function prepare(db) {
   s("listUsers", "SELECT * FROM users WHERE id > $1 ORDER BY id ASC LIMIT $2");
   s("countUsers", "SELECT COUNT(*)::int as count FROM users");
   s(
-    "countAdmins",
-    "SELECT COUNT(*)::int as count FROM users WHERE type = 'admin'",
+    "countAdminsForUpdate",
+    "SELECT COUNT(*)::int as count FROM (SELECT id FROM users WHERE type = 'admin' FOR UPDATE) AS admins",
   );
   s(
     "lockSignupFirstAdmin",
@@ -282,7 +277,10 @@ export function prepare(db) {
   s("getAuthToken", "SELECT * FROM auth_tokens WHERE token_hash = $1");
   s("deleteAuthToken", "DELETE FROM auth_tokens WHERE id = $1");
   s("deleteAllAuthTokens", "DELETE FROM auth_tokens WHERE user_id = $1");
-  s("listAuthTokens", "SELECT * FROM auth_tokens WHERE user_id = $1");
+  s(
+    "listAuthTokens",
+    "SELECT * FROM auth_tokens WHERE user_id = $1 AND expires_at::timestamptz > now()",
+  );
   s("deleteExpiredAuthTokens", "DELETE FROM auth_tokens WHERE expires_at < $1");
 
   // Automation tokens
@@ -375,6 +373,12 @@ export function prepare(db) {
     "listVersionsByOwner",
     `SELECT v.*, u.namespace FROM versions v JOIN users u ON v.owner_id = u.id
     WHERE u.namespace = $1 AND v.package_id = $2 ORDER BY v.id DESC`,
+  );
+  s(
+    "listVersionsByOwnerListing",
+    `SELECT v.*, u.namespace FROM versions v JOIN users u ON v.owner_id = u.id
+    WHERE u.namespace = $1 AND v.package_id = $2
+    AND v.status IN ('published', 'pending', 'rejected') ORDER BY v.id DESC`,
   );
   s(
     "listVersionsByExtension",
