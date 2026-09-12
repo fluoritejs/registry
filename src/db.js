@@ -443,7 +443,10 @@ export function prepare(db) {
     "createNotification",
     "INSERT INTO notifications (user_id, message, package_id, version, read_at, created_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
   );
-  s("getNotification", "SELECT * FROM notifications WHERE id = $1");
+  s(
+    "getNotification",
+    "SELECT * FROM notifications WHERE id = $1 AND user_id = $2",
+  );
   s(
     "listNotifications",
     "SELECT * FROM notifications WHERE user_id = $1 AND id < $2 ORDER BY id DESC LIMIT $3",

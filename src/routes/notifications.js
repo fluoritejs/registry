@@ -109,8 +109,8 @@ function notificationNotFound(res) {
 async function resolveNotification(req, res, next) {
   const id = Number(req.params.id);
   if (!Number.isSafeInteger(id) || id <= 0) return notificationNotFound(res);
-  const n = await getStmt("getNotification").get(id);
-  if (!n || n.user_id !== req.auth.user.id) return notificationNotFound(res);
+  const n = await getStmt("getNotification").get(id, req.auth.user.id);
+  if (!n) return notificationNotFound(res);
   req.notification = n;
   next();
 }
