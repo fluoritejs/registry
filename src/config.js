@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import yaml from "js-yaml";
-import { log } from "./logger.js";
+import { log, setLevel } from "./logger.js";
 
 const DEPLOYMENT_DEFAULTS = {
   server: {
@@ -283,6 +283,7 @@ export function reloadConfig() {
     }
   }
   currentConfig = fresh;
+  setLevel(fresh.logging.level);
   return fresh;
 }
 
