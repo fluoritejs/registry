@@ -1,12 +1,17 @@
 import { Router } from "express";
-import { nowIso, requireSession, adminMiddleware } from "../auth.js";
+import {
+  nowIso,
+  requireSession,
+  adminMiddleware,
+  authMiddleware,
+} from "../auth.js";
 import { getConfig } from "../config.js";
 import { getStmt } from "../db.js";
 import { log } from "../logger.js";
 import { isSafeSegment } from "../validate.js";
 import {
   loadManifest,
-  readContent,
+  readContentCached,
   contentPath,
   publishPair,
   TermsVersionConflictError,
@@ -33,7 +38,7 @@ function notFound(res, name) {
 function sendDocument(res, name, label) {
   const { [label]: version } = loadManifest(termsDir());
   if (!version) return notFound(res, name);
-  const content = readContent(termsDir(), name, version);
+  const content = readContentCached(termsDir(), name, version);
   if (content === null) return notFound(res, name);
   res.set("Content-Type", "text/markdown; charset=utf-8");
   res.set("X-Terms-Version", version);
@@ -46,39 +51,44 @@ router.get("/privacy", (req, res) =>
   sendDocument(res, "privacy", "privacyVersion"),
 );
 
-router.post("/terms/accept", requireSession, async (req, res) => {
-  const user = req.auth.user;
-  const { tosVersion, privacyVersion } = req.body || {};
-  const current = loadManifest(termsDir());
-  if (
-    typeof tosVersion !== "string" ||
-    typeof privacyVersion !== "string" ||
-    !current.tosVersion ||
-    !current.privacyVersion ||
-    tosVersion !== current.tosVersion ||
-    privacyVersion !== current.privacyVersion
-  ) {
-    return res
-      .status(400)
-      .json({
-        error: {
-          code: "INVALID_TERMS_VERSION",
-          message:
-            "The supplied terms or privacy version does not match the current one.",
-          field: null,
-        },
-      });
-  }
-  const acceptedAt = nowIso();
-  await getStmt("updateUserTermsAcceptance").run(
-    acceptedAt,
-    tosVersion,
-    acceptedAt,
-    privacyVersion,
-    user.id,
-  );
-  res.json({ success: true });
-});
+router.post(
+  "/terms/accept",
+  authMiddleware,
+  requireSession,
+  async (req, res) => {
+    const user = req.auth.user;
+    const { tosVersion, privacyVersion } = req.body || {};
+    const current = loadManifest(termsDir());
+    if (
+      typeof tosVersion !== "string" ||
+      typeof privacyVersion !== "string" ||
+      !current.tosVersion ||
+      !current.privacyVersion ||
+      tosVersion !== current.tosVersion ||
+      privacyVersion !== current.privacyVersion
+    ) {
+      return res
+        .status(400)
+        .json({
+          error: {
+            code: "INVALID_TERMS_VERSION",
+            message:
+              "The supplied terms or privacy version does not match the current one.",
+            field: null,
+          },
+        });
+    }
+    const acceptedAt = nowIso();
+    await getStmt("updateUserTermsAcceptance").run(
+      acceptedAt,
+      tosVersion,
+      acceptedAt,
+      privacyVersion,
+      user.id,
+    );
+    res.json({ success: true });
+  },
+);
 
 async function handleAdminUpdate(req, res, name, label) {
   const version = req.query.version;
@@ -163,11 +173,11 @@ async function handleAdminUpdate(req, res, name, label) {
   res.json({ version: trimmed, path: contentPath(dir, name, trimmed) });
 }
 
-router.patch("/admin/terms", adminMiddleware, (req, res) =>
+router.patch("/admin/terms", authMiddleware, adminMiddleware, (req, res) =>
   handleAdminUpdate(req, res, "tos", "tosVersion"),
 );
 
-router.patch("/admin/privacy", adminMiddleware, (req, res) =>
+router.patch("/admin/privacy", authMiddleware, adminMiddleware, (req, res) =>
   handleAdminUpdate(req, res, "privacy", "privacyVersion"),
 );
 

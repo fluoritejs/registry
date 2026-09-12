@@ -68,27 +68,8 @@ export function createApp() {
     authRoutes,
   );
 
-  // Terms routes: public GET /terms and /privacy, authenticated everything else
-  app.use(
-    "/v0",
-    (req, res, next) => {
-      const publicGets = ["/terms", "/privacy"];
-      const protectedPaths = [
-        "/terms/accept",
-        "/admin/terms",
-        "/admin/privacy",
-      ];
-      if (req.method === "GET" && publicGets.includes(req.path)) return next();
-      if (
-        !publicGets.includes(req.path) &&
-        !protectedPaths.includes(req.path)
-      ) {
-        return next();
-      }
-      return authMiddleware(req, res, next);
-    },
-    termsRoutes,
-  );
+  // Terms routes: public GET /terms and /privacy, guarded per-route
+  app.use("/v0", termsRoutes);
 
   // Public routes
   app.use("/v0/users", optionalAuthMiddleware, termsMiddleware, userRoutes);
