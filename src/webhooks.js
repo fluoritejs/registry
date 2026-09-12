@@ -143,7 +143,7 @@ export function isRestrictedIp(host) {
     if (a === 169 && b === 254) return true;
     if (a === 172 && b >= 16 && b <= 31) return true;
     if (a === 192 && b === 168) return true;
-    if (a === 192 && b === 0 && c === 2) return true;
+    if (a === 192 && b === 0) return true;
     if (a === 198 && (b === 18 || b === 19)) return true;
     if (a === 198 && b === 51 && c === 100) return true;
     if (a === 203 && b === 0 && c === 113) return true;
@@ -216,6 +216,11 @@ function sendHttps(url, body, headers, pinned, deadline) {
     req.setTimeout(timeLeft, () => {
       req.destroy(new Error("Webhook delivery timed out"));
     });
+    const hardDeadline = setTimeout(() => {
+      req.destroy(new Error("Webhook delivery timed out"));
+    }, timeLeft);
+    req.on("response", () => clearTimeout(hardDeadline));
+    req.on("close", () => clearTimeout(hardDeadline));
     req.on("error", reject);
     req.end(body);
   });
@@ -252,7 +257,7 @@ function drainResponse(res, deadline, maxResponseBodySize) {
 }
 
 function isRedirect(statusCode) {
-  return [301, 302, 303, 307, 308].includes(statusCode);
+  return [307, 308].includes(statusCode);
 }
 
 async function deliverOnce(
