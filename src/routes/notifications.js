@@ -1,27 +1,14 @@
 import { Router } from "express";
 import { getStmt } from "../db.js";
 import { getConfig } from "../config.js";
-import { parseCursor, encodeCursor, parseLimit } from "../pagination.js";
+import {
+  parseKeysetCursor,
+  encodeKeysetCursor,
+  parseLimit,
+} from "../pagination.js";
 import { nowIso } from "../auth.js";
 
 const router = Router();
-
-function requireAuth(req, res, next) {
-  if (!req.auth) {
-    return res
-      .status(401)
-      .json({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Authentication required.",
-          field: null,
-        },
-      });
-  }
-  next();
-}
-
-router.use(requireAuth);
 
 function notificationJson(n) {
   return {
@@ -39,7 +26,7 @@ router.get("/", async (req, res) => {
   const maxPageSize = config.listings.maxPageSize;
   const defaultSize = config.listings.defaultPageSize;
   const limit = parseLimit(req.query, defaultSize, maxPageSize);
-  const offset = parseCursor(req.query);
+  const after = parseKeysetCursor(req.query) ?? 2_147_483_647;
   const status = req.query.status;
   if (status !== undefined && status !== "read" && status !== "unread") {
     return res
@@ -57,26 +44,28 @@ router.get("/", async (req, res) => {
   if (status === "read") {
     notifications = await getStmt("listNotificationsRead").all(
       req.auth.user.id,
+      after,
       limit + 1,
-      offset,
     );
   } else if (status === "unread") {
     notifications = await getStmt("listNotificationsUnread").all(
       req.auth.user.id,
+      after,
       limit + 1,
-      offset,
     );
   } else {
     notifications = await getStmt("listNotifications").all(
       req.auth.user.id,
+      after,
       limit + 1,
-      offset,
     );
   }
 
   const sliced = notifications.slice(0, limit);
   const nextCursor =
-    notifications.length > limit ? encodeCursor(offset + limit) : null;
+    notifications.length > limit
+      ? encodeKeysetCursor(sliced[sliced.length - 1].id)
+      : null;
 
   if (config.notifications?.includeUnreadCountHeader !== false) {
     const unread = await getStmt("countUnreadNotifications").get(
