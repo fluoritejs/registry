@@ -192,7 +192,7 @@ router.get("/:namespace/:id", async (req, res) => {
           },
         });
     }
-    versions = await getStmt("listVersionsByOwner").all(namespace, id);
+    versions = await getStmt("listVersionsByOwnerListing").all(namespace, id);
   } else {
     versions = await getStmt("listVersionsByExtension").all(namespace, id);
   }
@@ -258,10 +258,23 @@ router.delete(
         });
     }
     let pending = false;
+    const failedIds = [];
     for (const v of versions) {
-      if (!(await finalizeBlobDelete(v))) pending = true;
+      if (!v.blob_path || !existsSync(v.blob_path)) continue;
+      try {
+        unlinkSync(v.blob_path);
+      } catch (err) {
+        pending = true;
+        failedIds.push(v.id);
+        log.warn(
+          `Failed to delete blob ${v.blob_path}: ${err.message} (left pending for retry)`,
+        );
+      }
     }
     if (pending) {
+      for (const versionId of failedIds) {
+        await getStmt("markVersionDeletionPending").run(versionId);
+      }
       log.warn(`Extension delete left pending blobs: ${namespace}/${id}`);
       return res
         .status(202)
@@ -271,7 +284,9 @@ router.delete(
             "One or more blobs could not be removed; the delete remains pending for retry.",
         });
     }
-    await getStmt("deleteVersionsByOwnerAndPackage").run(user.id, id);
+    await runTransaction(async () => {
+      await getStmt("deleteVersionsByOwnerAndPackage").run(user.id, id);
+    });
     log.info(`Extension deleted: ${namespace}/${id}`);
     res.status(204).end();
   },
@@ -622,12 +637,13 @@ router.get("/:namespace/:id/versions/:version", async (req, res) => {
           },
         });
     }
-    await getStmt("incrementDownloads").run(v.id);
     res.set("Content-Type", "application/javascript");
     res.set("X-Content-Type-Options", "nosniff");
     res.set("Content-Disposition", "attachment");
+    let failed = false;
     const stream = createReadStream(v.blob_path);
     stream.on("error", (err) => {
+      failed = true;
       log.error(`Failed to stream blob ${v.blob_path}: ${err.message}`);
       if (!res.headersSent) {
         res
@@ -644,6 +660,17 @@ router.get("/:namespace/:id/versions/:version", async (req, res) => {
       }
     });
     stream.pipe(res);
+    res.on("finish", () => {
+      if (!failed && res.statusCode === 200) {
+        getStmt("incrementDownloads")
+          .run(v.id)
+          .catch((err) => {
+            log.error(
+              `Failed to increment downloads for ${v.id}: ${err.message}`,
+            );
+          });
+      }
+    });
   } else {
     res.json(versionJson(v));
   }
