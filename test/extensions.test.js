@@ -5,7 +5,7 @@ import { join, dirname } from "node:path";
 import { createTestEnv, request, signup, authHeaders } from "./helpers.js";
 import { extractManifest } from "../src/manifest.js";
 import { getStmt, blobPath, reconcileStaging } from "../src/db.js";
-import { CONFIG_DEFAULTS, setConfig } from "../src/config.js";
+import { CONFIG_DEFAULTS, setConfig, getConfig } from "../src/config.js";
 
 const VALID_SOURCE = readFileSync(
   join(import.meta.dirname, "..", "fixtures", "valid-manifest.js"),
@@ -26,9 +26,13 @@ const COMPILED_SOURCE = readFileSync(
 
 describe("Manifest extraction", () => {
   const pattern = CONFIG_DEFAULTS.publishing.packageIdPattern;
+  let previousConfig;
 
-  before(() => setConfig(structuredClone(CONFIG_DEFAULTS)));
-  after(() => setConfig(structuredClone(CONFIG_DEFAULTS)));
+  before(() => {
+    previousConfig = getConfig();
+    setConfig(structuredClone(CONFIG_DEFAULTS));
+  });
+  after(() => setConfig(previousConfig));
 
   it("extracts a valid manifest", () => {
     const manifest = extractManifest(VALID_SOURCE, pattern);
@@ -670,7 +674,7 @@ describe("Extensions - publish flow", () => {
     assert.strictEqual(checkBefore.body.trusted, false);
 
     const src1 = `var Fluorite = { manifest: { id: 'trust-test', name: 'Trust Test', version: '1.0.0', license: 'MIT', description: 'd' } };`;
-    await request(
+    const publishRes = await request(
       env.app,
       "POST",
       "/v0/extensions/@regularuser/trust-test/versions",
@@ -682,8 +686,10 @@ describe("Extensions - publish flow", () => {
         },
       },
     );
+    assert.strictEqual(publishRes.status, 201);
+    assert.strictEqual(publishRes.body.status, "pending");
 
-    await request(
+    const approveRes = await request(
       env.app,
       "PATCH",
       "/v0/extensions/@regularuser/trust-test/versions/1.0.0",
@@ -695,6 +701,7 @@ describe("Extensions - publish flow", () => {
         },
       },
     );
+    assert.strictEqual(approveRes.status, 200);
 
     const checkAfter = await request(env.app, "GET", "/v0/users/regularuser");
     assert.strictEqual(checkAfter.body.trusted, true);
@@ -758,7 +765,7 @@ describe("Stats", () => {
     const src1b = `var Fluorite = { manifest: { id: 'pkg-a', name: 'Pkg A', version: '2.0.0', license: 'MIT', description: 'd' } };`;
     const src2 = `var Fluorite = { manifest: { id: 'pkg-b', name: 'Pkg B', version: '1.0.0', license: 'MIT', description: 'd' } };`;
 
-    await request(
+    const res1a = await request(
       env.app,
       "POST",
       "/v0/extensions/@statsadmin/pkg-a/versions",
@@ -770,7 +777,8 @@ describe("Stats", () => {
         },
       },
     );
-    await request(
+    assert.strictEqual(res1a.status, 201);
+    const res1b = await request(
       env.app,
       "POST",
       "/v0/extensions/@statsadmin/pkg-a/versions",
@@ -782,15 +790,22 @@ describe("Stats", () => {
         },
       },
     );
-    await request(env.app, "POST", "/v0/extensions/@owner2/pkg-b/versions", {
-      body: src2,
-      headers: {
-        ...authHeaders(owner2Token),
-        "Content-Type": "application/javascript",
+    assert.strictEqual(res1b.status, 201);
+    const res2 = await request(
+      env.app,
+      "POST",
+      "/v0/extensions/@owner2/pkg-b/versions",
+      {
+        body: src2,
+        headers: {
+          ...authHeaders(owner2Token),
+          "Content-Type": "application/javascript",
+        },
       },
-    });
+    );
+    assert.strictEqual(res2.status, 201);
 
-    await request(
+    const yankRes = await request(
       env.app,
       "PATCH",
       "/v0/extensions/@statsadmin/pkg-a/versions/1.0.0/yank",
@@ -802,6 +817,7 @@ describe("Stats", () => {
         },
       },
     );
+    assert.strictEqual(yankRes.status, 200);
     await request(
       env.app,
       "GET",
