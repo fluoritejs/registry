@@ -24,6 +24,7 @@ export function contentPath(termsDir, name, version) {
 }
 
 const manifestCache = new Map();
+const contentCache = new Map();
 const publishChains = new Map();
 
 export function loadManifest(termsDir) {
@@ -92,9 +93,18 @@ export function readContent(termsDir, name, version) {
   return null;
 }
 
+export function readContentCached(termsDir, name, version) {
+  const path = contentPath(termsDir, name, version);
+  if (contentCache.has(path)) return contentCache.get(path);
+  const content = readContent(termsDir, name, version);
+  contentCache.set(path, content);
+  return content;
+}
+
 export function writeContent(termsDir, name, content) {
   mkdirSync(termsDir, { recursive: true });
   writeFileSync(contentPath(termsDir, name), content, "utf8");
+  contentCache.delete(contentPath(termsDir, name));
 }
 
 function assertSafeVersion(version) {
@@ -140,9 +150,14 @@ function runPublishPairSync(termsDir, name, content, label, version) {
   try {
     writeFileSync(contentTmp, content, "utf8");
     writeFileSync(manifestTmp, yaml.dump(manifest), "utf8");
+    // A crash between these renames leaves content and manifest temporarily
+    // out of sync; reads follow the manifest, so the store recovers, and
+    // republishing the same version with different content raises
+    // TermsVersionConflictError.
     renameSync(contentTmp, contentFile);
     renameSync(manifestTmp, manifestFile);
     manifestCache.delete(manifestFile);
+    contentCache.delete(contentFile);
   } catch (err) {
     try {
       if (existsSync(contentTmp)) unlinkSync(contentTmp);
