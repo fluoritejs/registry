@@ -29,7 +29,7 @@ export function createApp() {
   app.use((req, res, next) => {
     if (deployment.server.requireHttps && !req.secure && !isLoopback(req)) {
       return res
-        .status(400)
+        .status(403)
         .json({
           error: {
             code: "HTTPS_REQUIRED",
@@ -62,7 +62,7 @@ export function createApp() {
         req.method === "POST" &&
         ["/signup", "/login"].some((p) => req.path === p);
       if (isPublic) return next();
-      authMiddleware(req, res, next);
+      return authMiddleware(req, res, next);
     },
     termsMiddleware,
     authRoutes,
@@ -85,7 +85,7 @@ export function createApp() {
       ) {
         return next();
       }
-      authMiddleware(req, res, next);
+      return authMiddleware(req, res, next);
     },
     termsRoutes,
   );
