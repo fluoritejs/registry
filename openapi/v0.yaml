@@ -413,6 +413,8 @@ paths:
           $ref: "#/components/responses/Error"
         "409":
           $ref: "#/components/responses/Error"
+        "429":
+          $ref: "#/components/responses/Error"
 
   /auth/login:
     post:
@@ -940,6 +942,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/VersionMetadata"
+        "400":
+          $ref: "#/components/responses/Error"
         "403":
           $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
         "404":
@@ -993,6 +997,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/VersionMetadata"
+        "400":
+          $ref: "#/components/responses/Error"
         "403":
           $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
         "404":
