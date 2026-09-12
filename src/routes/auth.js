@@ -21,6 +21,12 @@ import { loadManifest } from "../terms.js";
 
 const router = Router();
 
+const MAX_DISPLAY_NAME = 255;
+
+function invalidDisplayName(value) {
+  return typeof value !== "string" || value.length > MAX_DISPLAY_NAME;
+}
+
 let dummyHash;
 async function verifyOrDummy(password, actualHash) {
   if (!actualHash) {
@@ -75,6 +81,18 @@ router.post("/signup", rateLimitMiddleware("signup"), async (req, res) => {
           code: "VALIDATION_ERROR",
           message: "Password must be at least 8 characters.",
           field: "password",
+        },
+      });
+  }
+
+  if (displayName !== undefined && invalidDisplayName(displayName)) {
+    return res
+      .status(400)
+      .json({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: `displayName must be a string of at most ${MAX_DISPLAY_NAME} characters.`,
+          field: "displayName",
         },
       });
   }
