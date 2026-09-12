@@ -126,7 +126,7 @@ function validateDeployment(d) {
   if (!d.admin.firstUserBecomesAdmin && !d.admin.bootstrapAccount) {
     throw new Error(
       "deployment.yaml: admin.firstUserBecomesAdmin is false but admin.bootstrapAccount is missing. " +
-        "Provide a bootstrapAccount (namespace, password) or set firstUserBecomesAdmin to true.",
+        "Provide a bootstrapAccount (namespace, passwordFromEnv or passwordFile) or set firstUserBecomesAdmin to true.",
     );
   }
   if (d.admin.firstUserBecomesAdmin && d.admin.bootstrapAccount) {
@@ -138,8 +138,19 @@ function validateDeployment(d) {
 }
 
 function resolveBootstrapPassword(account) {
-  let password = account.password;
-  if (account.passwordFromEnv !== undefined) {
+  if (account.password !== undefined) {
+    throw new Error(
+      "deployment.yaml: admin.bootstrapAccount.password is not supported; use passwordFromEnv or passwordFile instead.",
+    );
+  }
+  const hasEnv = account.passwordFromEnv !== undefined;
+  const hasFile = account.passwordFile !== undefined;
+  if (hasEnv && hasFile) {
+    throw new Error(
+      "deployment.yaml: admin.bootstrapAccount accepts only one of passwordFromEnv or passwordFile.",
+    );
+  }
+  if (hasEnv) {
     if (
       typeof account.passwordFromEnv !== "string" ||
       !account.passwordFromEnv
@@ -154,19 +165,16 @@ function resolveBootstrapPassword(account) {
         `deployment.yaml: admin.bootstrapAccount.passwordFromEnv refers to ${account.passwordFromEnv}, which is not set.`,
       );
     }
-    password = envValue;
+    return envValue;
   }
-  if (account.passwordFile !== undefined) {
+  if (hasFile) {
     if (typeof account.passwordFile !== "string" || !account.passwordFile) {
       throw new Error(
         "deployment.yaml: admin.bootstrapAccount.passwordFile must be a file path.",
       );
     }
     try {
-      password = readFileSync(account.passwordFile, "utf8").replace(
-        /\r?\n$/,
-        "",
-      );
+      return readFileSync(account.passwordFile, "utf8").replace(/\r?\n$/, "");
     } catch (err) {
       throw new Error(
         `deployment.yaml: could not read admin.bootstrapAccount.passwordFile ${account.passwordFile}: ${err.message}`,
@@ -174,7 +182,9 @@ function resolveBootstrapPassword(account) {
       );
     }
   }
-  return password;
+  throw new Error(
+    "deployment.yaml: admin.bootstrapAccount requires a passwordFromEnv or passwordFile.",
+  );
 }
 
 function validateBootstrapPassword(password) {
