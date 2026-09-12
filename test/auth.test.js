@@ -38,7 +38,7 @@ describe("Auth", () => {
 
     it("includes X-Unread-Notifications header", async () => {
       const res = await signup(env.app, "notifuser", "password123");
-      assert.ok(res.headers["x-unread-notifications"]);
+      assert.strictEqual(res.headers["x-unread-notifications"], "0");
     });
 
     it("failed signups do not count toward rate limit", async () => {

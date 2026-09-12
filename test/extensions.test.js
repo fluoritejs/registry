@@ -27,7 +27,7 @@ const COMPILED_SOURCE = readFileSync(
 describe("Manifest extraction", () => {
   const pattern = CONFIG_DEFAULTS.publishing.packageIdPattern;
 
-  before(() => setConfig(CONFIG_DEFAULTS));
+  before(() => setConfig(structuredClone(CONFIG_DEFAULTS)));
 
   it("extracts a valid manifest", () => {
     const manifest = extractManifest(VALID_SOURCE, pattern);
@@ -590,7 +590,7 @@ describe("Extensions - publish flow", () => {
 
   it("yanked versions hidden from default view", async () => {
     const source3 = `var Fluorite = { manifest: { id: 'hello-world-yanked', name: 'Yanked Test', version: '1.0.0', license: 'MIT', description: 'd' } };`;
-    await request(
+    const publishRes = await request(
       env.app,
       "POST",
       "/v0/extensions/@regularuser/hello-world-yanked/versions",
@@ -602,8 +602,9 @@ describe("Extensions - publish flow", () => {
         },
       },
     );
+    assert.strictEqual(publishRes.status, 201);
 
-    await request(
+    const yankRes = await request(
       env.app,
       "PATCH",
       "/v0/extensions/@regularuser/hello-world-yanked/versions/1.0.0/yank",
@@ -615,6 +616,7 @@ describe("Extensions - publish flow", () => {
         },
       },
     );
+    assert.strictEqual(yankRes.status, 200);
 
     const defaultRes = await request(
       env.app,
