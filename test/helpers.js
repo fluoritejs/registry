@@ -153,7 +153,7 @@ export async function request(app, method, path, options = {}) {
         headers: { ...options.headers },
       };
 
-      if (options.body !== undefined && typeof options.body === "string") {
+      if (options.body !== undefined) {
         reqOptions.headers["Content-Type"] =
           options.headers?.["Content-Type"] || "application/json";
       }
