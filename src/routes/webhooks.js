@@ -90,7 +90,13 @@ router.post("/", async (req, res) => {
         },
       });
   }
-  if (!getEncryptionKey()) {
+  let encryptionKey;
+  try {
+    encryptionKey = getEncryptionKey();
+  } catch {
+    encryptionKey = null;
+  }
+  if (!encryptionKey) {
     return res
       .status(500)
       .json({
