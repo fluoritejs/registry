@@ -53,14 +53,12 @@ describe("Webhooks — encryption key required", () => {
     assert.strictEqual(res.status, 500);
     assert.strictEqual(res.body.error.code, "WEBHOOK_ENCRYPTION_REQUIRED");
     assert.ok(res.body.error.message.includes("encryptionKey"));
-  });
 
-  it("no webhook was created", async () => {
-    const res = await request(env.app, "GET", "/v0/webhooks", {
+    const after = await request(env.app, "GET", "/v0/webhooks", {
       headers: authHeaders(adminToken),
     });
-    assert.strictEqual(res.status, 200);
-    assert.strictEqual(res.body.length, 0);
+    assert.strictEqual(after.status, 200);
+    assert.strictEqual(after.body.length, 0);
   });
 
   it("encryptSecret throws when no key is configured", () => {
@@ -98,12 +96,23 @@ describe("Webhooks", () => {
   });
 
   it("lists webhooks", async () => {
+    const created = await request(env.app, "POST", "/v0/webhooks", {
+      body: JSON.stringify({
+        url: "https://example.com/list-me",
+        events: ["version.published"],
+      }),
+      headers: {
+        ...authHeaders(adminToken),
+        "Content-Type": "application/json",
+      },
+    });
+    assert.strictEqual(created.status, 201);
     const res = await request(env.app, "GET", "/v0/webhooks", {
       headers: authHeaders(adminToken),
     });
     assert.strictEqual(res.status, 200);
     assert.ok(Array.isArray(res.body));
-    assert.ok(res.body.length >= 1);
+    assert.ok(res.body.some(({ id }) => id === created.body.id));
   });
 
   it("non-admin cannot list webhooks", async () => {
@@ -115,17 +124,29 @@ describe("Webhooks", () => {
   });
 
   it("updates a webhook", async () => {
-    const listRes = await request(env.app, "GET", "/v0/webhooks", {
-      headers: authHeaders(adminToken),
-    });
-    const whId = listRes.body[0].id;
-    const res = await request(env.app, "PATCH", `/v0/webhooks/${whId}`, {
-      body: JSON.stringify({ enabled: false }),
+    const created = await request(env.app, "POST", "/v0/webhooks", {
+      body: JSON.stringify({
+        url: "https://example.com/update-me",
+        events: ["version.published"],
+      }),
       headers: {
         ...authHeaders(adminToken),
         "Content-Type": "application/json",
       },
     });
+    assert.strictEqual(created.status, 201);
+    const res = await request(
+      env.app,
+      "PATCH",
+      `/v0/webhooks/${created.body.id}`,
+      {
+        body: JSON.stringify({ enabled: false }),
+        headers: {
+          ...authHeaders(adminToken),
+          "Content-Type": "application/json",
+        },
+      },
+    );
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.enabled, false);
   });

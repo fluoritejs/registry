@@ -40,15 +40,16 @@ describe("Terms of Service & Privacy Policy", () => {
   });
 
   it("blocks unaccepted users from auth-required routes", async () => {
+    const fresh = await signup(env.app, "termsuser2", "password123");
     const res = await request(env.app, "GET", "/v0/auth/me", {
-      headers: authHeaders(userToken),
+      headers: authHeaders(fresh.body.token),
     });
     assert.strictEqual(res.status, 403);
     assert.strictEqual(res.body.error.code, "TERMS_ACCEPTANCE_REQUIRED");
   });
 
-  it("accepts terms with the current versions", async () => {
-    const res = await request(env.app, "POST", "/v0/terms/accept", {
+  it("accepts the current versions and allows access", async () => {
+    const accept = await request(env.app, "POST", "/v0/terms/accept", {
       body: JSON.stringify({
         tosVersion: "test-tos",
         privacyVersion: "test-privacy",
@@ -58,11 +59,9 @@ describe("Terms of Service & Privacy Policy", () => {
         "Content-Type": "application/json",
       },
     });
-    assert.strictEqual(res.status, 200);
-    assert.deepStrictEqual(res.body, { success: true });
-  });
+    assert.strictEqual(accept.status, 200);
+    assert.deepStrictEqual(accept.body, { success: true });
 
-  it("allows access after acceptance", async () => {
     const res = await request(env.app, "GET", "/v0/auth/me", {
       headers: authHeaders(userToken),
     });
