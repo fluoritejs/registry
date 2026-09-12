@@ -138,10 +138,7 @@ export function extractManifest(source, packageIdPattern) {
   // Fluorite declaration lives one level down.
   const containers = [ast.body];
   for (const node of ast.body) {
-    if (
-      node.type === "ExpressionStatement" &&
-      node.expression.type === "CallExpression"
-    ) {
+    if (node.type === "ExpressionStatement") {
       nestedStatements(node, containers);
     }
   }
