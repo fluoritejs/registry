@@ -152,6 +152,7 @@ export function isRestrictedIp(host) {
     if (a === 172 && b >= 16 && b <= 31) return true;
     if (a === 192 && b === 168) return true;
     if (a === 192 && b === 0) return true;
+    if (a === 192 && b === 88 && c === 99) return true;
     if (a === 198 && (b === 18 || b === 19)) return true;
     if (a === 198 && b === 51 && c === 100) return true;
     if (a === 203 && b === 0 && c === 113) return true;
@@ -180,6 +181,16 @@ export function isRestrictedIp(host) {
     }
     if (bytes[0] === 0x20 && bytes[1] === 0x02) {
       return isRestrictedIp(`${bytes[2]}.${bytes[3]}.${bytes[4]}.${bytes[5]}`);
+    }
+    if (
+      bytes[0] === 0x20 &&
+      bytes[1] === 0x01 &&
+      bytes[2] === 0x00 &&
+      bytes[3] === 0x00
+    ) {
+      return isRestrictedIp(
+        `${bytes[12] ^ 0xff}.${bytes[13] ^ 0xff}.${bytes[14] ^ 0xff}.${bytes[15] ^ 0xff}`,
+      );
     }
     if (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0x80) return true;
     if ((bytes[0] & 0xfe) === 0xfc) return true;
@@ -360,6 +371,7 @@ export async function deliverWithRetry(wh, body, event, cfg = {}) {
   const headers = {
     "Content-Type": "application/json",
     "X-Fluorite-Signature": signatureHeader(body, plaintext),
+    "X-Fluorite-Delivery-Id": crypto.randomUUID(),
   };
   const deliveryCfg = {
     maxRetries: cfg.maxRetries ?? 0,
@@ -385,9 +397,6 @@ export async function deliverWithRetry(wh, body, event, cfg = {}) {
         return;
       }
       if (status >= 400 && status < 500 && status !== 408 && status !== 429) {
-        log.warn(
-          `Refusing webhook delivery to ${wh.url}: HTTP ${status} is permanent`,
-        );
         throw Object.assign(
           new Error(`Webhook destination returned ${status}`),
           { permanent: true },
