@@ -151,18 +151,7 @@ router.get("/:namespace", async (req, res) => {
   res.json(userJson(user));
 });
 
-router.patch("/:namespace", async (req, res) => {
-  if (!req.auth || req.auth.tokenKind !== "session") {
-    return res
-      .status(401)
-      .json({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Authentication required.",
-          field: null,
-        },
-      });
-  }
+router.patch("/:namespace", requireSession, async (req, res) => {
   const target = await getStmt("getUserByNamespace").get(req.params.namespace);
   if (!target) {
     return res
@@ -199,6 +188,7 @@ router.patch("/:namespace", async (req, res) => {
   }
 
   let updatedUser = target;
+  let changed = false;
 
   if (password !== undefined) {
     if (typeof password !== "string" || password.length < 8) {
@@ -221,29 +211,22 @@ router.patch("/:namespace", async (req, res) => {
     log.info(
       `Password changed for ${target.namespace} — all sessions and tokens revoked`,
     );
-    updatedUser = await getStmt("getUserByNamespace").get(target.namespace);
+    changed = true;
   }
 
   if (displayName !== undefined) {
     await getStmt("updateUserDisplayName").run(displayName, target.namespace);
+    changed = true;
+  }
+
+  if (changed) {
     updatedUser = await getStmt("getUserByNamespace").get(target.namespace);
   }
 
   res.json(userJson(updatedUser));
 });
 
-router.delete("/:namespace", async (req, res) => {
-  if (!req.auth || req.auth.tokenKind !== "session") {
-    return res
-      .status(401)
-      .json({
-        error: {
-          code: "UNAUTHORIZED",
-          message: "Authentication required.",
-          field: null,
-        },
-      });
-  }
+router.delete("/:namespace", requireSession, async (req, res) => {
   const target = await getStmt("getUserByNamespace").get(req.params.namespace);
   if (!target) {
     return res
@@ -330,8 +313,17 @@ router.patch("/:namespace/role", requireSession, async (req, res) => {
       });
   }
   if (type === "normal" && target.type === "admin") {
-    const { count } = await getStmt("countAdmins").get();
-    if (count <= 1) {
+    let updated = null;
+    let demoteBlocked = false;
+    await runTransaction(async () => {
+      const { count } = await getStmt("countAdminsForUpdate").get();
+      if (count <= 1) {
+        demoteBlocked = true;
+        return;
+      }
+      updated = await getStmt("updateUserRole").get(type, target.namespace);
+    });
+    if (demoteBlocked) {
       return res
         .status(409)
         .json({
@@ -342,6 +334,7 @@ router.patch("/:namespace/role", requireSession, async (req, res) => {
           },
         });
     }
+    return res.json(userJson(updated));
   }
   const updated = await getStmt("updateUserRole").get(type, target.namespace);
   res.json(userJson(updated));
