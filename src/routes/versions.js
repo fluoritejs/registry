@@ -9,21 +9,19 @@ import {
 } from "../pagination.js";
 import { versionJson } from "../version-json.js";
 
+export const WORKLIST_STATUSES = [
+  "staging",
+  "pending",
+  "published",
+  "rejected",
+  "pending_delete",
+];
+
 const router = Router();
 
 router.get("/", adminMiddleware, async (req, res) => {
-  const config = getConfig();
-  const maxPageSize = config.listings.maxPageSize;
-  const defaultSize = config.listings.defaultPageSize;
-  const limit = parseLimit(req.query, defaultSize, maxPageSize);
-  const after = parseKeysetCursor(req.query) ?? 2_147_483_647;
   const status = req.query.status;
-
-  if (
-    !["staging", "pending", "published", "rejected", "pending_delete"].includes(
-      status,
-    )
-  ) {
+  if (!WORKLIST_STATUSES.includes(status)) {
     return res
       .status(400)
       .json({
@@ -35,6 +33,12 @@ router.get("/", adminMiddleware, async (req, res) => {
         },
       });
   }
+
+  const config = getConfig();
+  const maxPageSize = config.listings.maxPageSize;
+  const defaultSize = config.listings.defaultPageSize;
+  const limit = parseLimit(req.query, defaultSize, maxPageSize);
+  const after = parseKeysetCursor(req.query) ?? 2_147_483_647;
 
   const versions = await getStmt("listVersionsWorklist").all(
     status,
