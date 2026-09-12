@@ -154,6 +154,8 @@ describe("Webhooks", () => {
       "https://169.254.10.25/hook",
       "https://[fe80::1]/hook",
       "https://[::ffff:7f00:1]/hook",
+      "https://[2002:7f00:1::]/hook",
+      "https://[2002:c0a8:101::]/hook",
       "file:///etc/passwd",
       "ftp://example.com/hook",
       "not-a-url",

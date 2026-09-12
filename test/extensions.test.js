@@ -825,12 +825,19 @@ describe("Stats", () => {
       { headers: { Accept: "application/javascript" } },
     );
 
-    const res = await request(env.app, "GET", "/v0/stats");
-    assert.strictEqual(res.status, 200);
-    assert.strictEqual(res.body.published, 2);
-    assert.strictEqual(res.body.authors, 2);
-    assert.strictEqual(res.body.pending, 0);
-    assert.strictEqual(res.body.totalDownloads, 1);
+    let downloads = 0;
+    const deadline = Date.now() + 2000;
+    while (Date.now() < deadline) {
+      const res = await request(env.app, "GET", "/v0/stats");
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.body.published, 2);
+      assert.strictEqual(res.body.authors, 2);
+      assert.strictEqual(res.body.pending, 0);
+      downloads = res.body.totalDownloads;
+      if (downloads === 1) break;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    assert.strictEqual(downloads, 1);
   });
 });
 
