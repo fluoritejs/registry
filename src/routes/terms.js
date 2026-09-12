@@ -115,6 +115,17 @@ async function handleAdminUpdate(req, res, name, label) {
         },
       });
   }
+  if (!req.is("text/*")) {
+    return res
+      .status(400)
+      .json({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Markdown content must be sent as text.",
+          field: "content",
+        },
+      });
+  }
   const body = req.body;
   let content;
   if (typeof body === "string") {
