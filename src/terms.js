@@ -104,7 +104,7 @@ export function readContentCached(termsDir, name, version) {
 export function writeContent(termsDir, name, content) {
   mkdirSync(termsDir, { recursive: true });
   writeFileSync(contentPath(termsDir, name), content, "utf8");
-  contentCache.delete(contentPath(termsDir, name));
+  contentCache.clear();
 }
 
 function assertSafeVersion(version) {
