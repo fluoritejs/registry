@@ -52,6 +52,7 @@ const CONFIG_DEFAULTS = {
 function deepMerge(base, overrides, path = "") {
   const result = { ...base };
   for (const key of Object.keys(overrides)) {
+    if (key === "__proto__" || key === "constructor") continue;
     const childPath = path ? `${path}.${key}` : key;
     const overrideIsNull = overrides[key] === null;
     const baseIsMapping =
