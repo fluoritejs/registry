@@ -121,6 +121,7 @@ function userJson(user) {
 }
 
 const rateLimitStore = new Map();
+const EXPIRY_SWEEP_BUDGET = 64;
 
 export function clearRateLimits() {
   rateLimitStore.clear();
@@ -133,8 +134,13 @@ function getOrCreateEntry(key, windowMs) {
     entry = { start: now, count: 0, windowMs };
     rateLimitStore.set(key, entry);
   }
+  let swept = 0;
   for (const [k, e] of rateLimitStore) {
-    if (now - e.start > e.windowMs) rateLimitStore.delete(k);
+    if (swept >= EXPIRY_SWEEP_BUDGET) break;
+    if (now - e.start > e.windowMs) {
+      rateLimitStore.delete(k);
+      swept++;
+    }
   }
   return entry;
 }
@@ -247,7 +253,13 @@ export async function authMiddleware(req, res, next) {
         });
     }
     const scopes = JSON.parse(autoToken.scopes);
-    await getStmt("updateAutomationTokenLastUsed").run(nowIso(), autoToken.id);
+    const lastUsed = autoToken.last_used_at;
+    if (!lastUsed || Date.now() - new Date(lastUsed).getTime() > 60_000) {
+      await getStmt("updateAutomationTokenLastUsed").run(
+        nowIso(),
+        autoToken.id,
+      );
+    }
     req.auth = { user, tokenKind: "automation", scopes };
     return next();
   }
