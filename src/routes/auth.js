@@ -21,6 +21,15 @@ import { loadManifest } from "../terms.js";
 
 const router = Router();
 
+let dummyHash;
+async function verifyOrDummy(password, actualHash) {
+  if (!actualHash) {
+    dummyHash ||= await hashPassword("fluorite-timing-dummy-password");
+    actualHash = dummyHash;
+  }
+  return verifyPassword(password, actualHash);
+}
+
 const sessionAuth = [
   (req, res, next) => {
     if (!req.auth) {
@@ -189,6 +198,7 @@ router.post("/login", rateLimitMiddleware("login"), async (req, res) => {
 
   const user = await getStmt("getUserByNamespace").get(namespace);
   if (!user || !user.password_hash) {
+    await verifyOrDummy(password, null);
     return res
       .status(401)
       .json({
@@ -200,7 +210,7 @@ router.post("/login", rateLimitMiddleware("login"), async (req, res) => {
       });
   }
 
-  if (!(await verifyPassword(password, user.password_hash))) {
+  if (!(await verifyOrDummy(password, user.password_hash))) {
     return res
       .status(401)
       .json({

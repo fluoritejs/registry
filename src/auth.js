@@ -180,6 +180,7 @@ export function rateLimitMiddleware(type) {
 }
 
 export async function authMiddleware(req, res, next) {
+  if (req.auth) return next();
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
     return res
