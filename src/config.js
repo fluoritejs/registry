@@ -201,6 +201,12 @@ function validateBootstrapPassword(password) {
   }
 }
 
+export function resolveBootstrapAccountPassword(account) {
+  const password = resolveBootstrapPassword(account);
+  validateBootstrapPassword(password);
+  return password;
+}
+
 export function loadDeployment(overrides = {}) {
   const raw = deepMerge(
     DEPLOYMENT_DEFAULTS,
@@ -211,10 +217,7 @@ export function loadDeployment(overrides = {}) {
     raw.database.connectionString = process.env.FLUORITE_DATABASE_URL;
   }
   if (raw.admin.bootstrapAccount) {
-    raw.admin.bootstrapAccount.password = resolveBootstrapPassword(
-      raw.admin.bootstrapAccount,
-    );
-    validateBootstrapPassword(raw.admin.bootstrapAccount.password);
+    resolveBootstrapAccountPassword(raw.admin.bootstrapAccount);
   }
   raw.storage.dataDir = resolve(raw.storage.dataDir);
   return raw;

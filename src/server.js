@@ -6,6 +6,7 @@ import {
   setDeployment,
   reloadConfig,
   getConfig,
+  resolveBootstrapAccountPassword,
 } from "./config.js";
 import {
   openDb,
@@ -45,7 +46,7 @@ async function main() {
     );
     if (!existing) {
       const hash = await hashPassword(
-        deployment.admin.bootstrapAccount.password,
+        resolveBootstrapAccountPassword(deployment.admin.bootstrapAccount),
       );
       const created = await getStmt("createUser").get(
         deployment.admin.bootstrapAccount.namespace,
