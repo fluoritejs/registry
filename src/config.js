@@ -50,7 +50,7 @@ const CONFIG_DEFAULTS = {
 };
 
 function deepMerge(base, overrides, path = "") {
-  const result = { ...base };
+  const result = structuredClone(base);
   for (const key of Object.keys(overrides)) {
     if (key === "__proto__" || key === "constructor") continue;
     const childPath = path ? `${path}.${key}` : key;
