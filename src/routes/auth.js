@@ -143,7 +143,9 @@ router.post("/signup", rateLimitMiddleware("signup"), async (req, res) => {
     await runTransaction(async () => {
       await getStmt("lockSignupFirstAdmin").run();
       const userCount = (await getStmt("countUsers").get()).count;
-      if (getDeployment().admin.firstUserBecomesAdmin && userCount === 0) {
+      const firstAdmin =
+        getDeployment().admin.firstUserBecomesAdmin && userCount === 0;
+      if (firstAdmin) {
         type = "admin";
         trusted = 1;
       }
@@ -156,7 +158,7 @@ router.post("/signup", rateLimitMiddleware("signup"), async (req, res) => {
         trusted,
       );
 
-      if (userCount === 0 && getDeployment().admin.firstUserBecomesAdmin) {
+      if (firstAdmin) {
         const { tosVersion, privacyVersion } = loadManifest(config.terms.dir);
         await getStmt("updateUserTermsAcceptance").run(
           nowIso(),
@@ -192,7 +194,7 @@ router.post("/signup", rateLimitMiddleware("signup"), async (req, res) => {
   );
 
   const createdUser = await getStmt("getUserById").get(user.id);
-  log.info(`User signed up: ${namespace} (type=${type})`);
+  log.debug(`User signed up: ${namespace} (type=${type})`);
   recordSignupSuccess(req);
 
   const response = await successResponse(res, createdUser, token, config);
@@ -249,7 +251,7 @@ router.post("/login", rateLimitMiddleware("login"), async (req, res) => {
     expiryDate(),
   );
 
-  log.info(`User logged in: ${namespace}`);
+  log.debug(`User logged in: ${namespace}`);
 
   const config = getConfig();
   const response = await successResponse(res, user, token, config);
@@ -329,13 +331,17 @@ router.get("/tokens", sessionAuth, async (req, res) => {
 
 router.post("/tokens", sessionAuth, async (req, res) => {
   const { name, scopes } = req.body ?? {};
-  if (typeof name !== "string" || name.trim().length === 0) {
+  if (
+    typeof name !== "string" ||
+    name.trim().length === 0 ||
+    name.length > MAX_DISPLAY_NAME
+  ) {
     return res
       .status(400)
       .json({
         error: {
           code: "VALIDATION_ERROR",
-          message: "name must be a non-empty string.",
+          message: `name must be a non-empty string of at most ${MAX_DISPLAY_NAME} characters.`,
           field: "name",
         },
       });
@@ -369,12 +375,13 @@ router.post("/tokens", sessionAuth, async (req, res) => {
   const id = crypto.randomUUID();
   const tokenHash = hashToken(token);
   const createdAt = nowIso();
+  const storedScopes = [...new Set(scopes)];
   await getStmt("createAutomationToken").run(
     id,
     req.auth.user.id,
     name,
     tokenHash,
-    JSON.stringify(scopes),
+    JSON.stringify(storedScopes),
     createdAt,
   );
 
@@ -382,7 +389,14 @@ router.post("/tokens", sessionAuth, async (req, res) => {
 
   res
     .status(201)
-    .json({ id, name, scopes, createdAt, lastUsedAt: null, token });
+    .json({
+      id,
+      name,
+      scopes: storedScopes,
+      createdAt,
+      lastUsedAt: null,
+      token,
+    });
 });
 
 router.delete("/tokens/:id", sessionAuth, async (req, res) => {
