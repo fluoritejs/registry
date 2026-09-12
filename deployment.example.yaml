@@ -2,7 +2,7 @@
 
 server:
   port: 3000
-  publicBaseUrl: https://fluorite.sdisk.us
+  publicBaseUrl: https://registry.example.com
   # Required except for loopback addresses (127.0.0.1 / localhost).
   requireHttps: true
 

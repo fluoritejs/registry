@@ -82,6 +82,21 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
+    PendingDelete:
+      description: >-
+        Some blobs could not be removed on this attempt; the deletion stays
+        pending and is retried by the reconciliation sweeper.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [pending, message]
+            properties:
+              pending:
+                type: boolean
+                enum: [true]
+              message:
+                type: string
     Unauthorized:
       description: Missing or invalid credentials.
       content:
@@ -681,6 +696,8 @@ paths:
       responses:
         "204":
           description: Deleted.
+        "202":
+          $ref: "#/components/responses/PendingDelete"
         "403":
           $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
         "404":
@@ -811,6 +828,8 @@ paths:
       responses:
         "204":
           description: Deleted.
+        "202":
+          $ref: "#/components/responses/PendingDelete"
         "403":
           $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
         "404":
@@ -926,6 +945,8 @@ paths:
       responses:
         "204":
           description: Deleted.
+        "202":
+          $ref: "#/components/responses/PendingDelete"
         "403":
           $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
         "404":

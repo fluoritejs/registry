@@ -4,7 +4,7 @@ Thanks for contributing to Fluorite Registry.
 
 ## Prerequisites
 
-- Node.js 22.13.0+ or 24+, with npm
+- Node.js 22.13.0 through 22.x, or 24 and newer, with npm
 - A dedicated, disposable PostgreSQL database for running the test suite. Each run creates and then drops its own schema, so the database it connects to must not be a shared database whose data you rely on.
 
 ## Getting Started

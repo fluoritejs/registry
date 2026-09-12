@@ -5,7 +5,7 @@ auth:
   tokenTtl: 7d
   passwordHashing:
     algorithm: scrypt
-    N: 16384
+    N: 131072
     r: 8
     p: 1
   rateLimit:
