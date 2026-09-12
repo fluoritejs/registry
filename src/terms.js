@@ -127,13 +127,11 @@ function runPublishPairSync(termsDir, name, content, label, version) {
   const contentFile = contentPath(termsDir, name, version);
   const manifestFile = manifestPath(termsDir);
   const manifest = loadManifest(termsDir);
-  if (manifest[label] === version) {
-    const existing = existsSync(contentFile)
-      ? readFileSync(contentFile, "utf8")
-      : null;
-    if (existing !== null && existing !== content) {
-      throw new TermsVersionConflictError(label, version);
-    }
+  const existing = existsSync(contentFile)
+    ? readFileSync(contentFile, "utf8")
+    : null;
+  if (existing !== null && existing !== content) {
+    throw new TermsVersionConflictError(label, version);
   }
   manifest[label] = version;
   const cookie = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;

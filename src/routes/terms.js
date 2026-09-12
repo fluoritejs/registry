@@ -80,7 +80,7 @@ router.post("/terms/accept", requireSession, async (req, res) => {
   res.json({ success: true });
 });
 
-async function handleAdminUpdate(res, name, label, req) {
+async function handleAdminUpdate(req, res, name, label) {
   const version = req.query.version;
   const trimmed = typeof version === "string" ? version.trim() : "";
   if (!trimmed) {
@@ -164,11 +164,11 @@ async function handleAdminUpdate(res, name, label, req) {
 }
 
 router.patch("/admin/terms", adminMiddleware, (req, res) =>
-  handleAdminUpdate(res, "tos", "tosVersion", req),
+  handleAdminUpdate(req, res, "tos", "tosVersion"),
 );
 
 router.patch("/admin/privacy", adminMiddleware, (req, res) =>
-  handleAdminUpdate(res, "privacy", "privacyVersion", req),
+  handleAdminUpdate(req, res, "privacy", "privacyVersion"),
 );
 
 export default router;
