@@ -17,7 +17,7 @@ import statsRoutes from "./routes/stats.js";
 import termsRoutes from "./routes/terms.js";
 
 function isLoopback(req) {
-  const ip = req.socket.remoteAddress;
+  const ip = req.ip;
   return ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
 }
 
@@ -118,7 +118,10 @@ export function createApp() {
       });
   });
 
-  app.use((err, req, res, _next) => {
+  app.use((err, req, res, next) => {
+    if (res.headersSent) {
+      return next(err);
+    }
     const status =
       Number.isInteger(err.status) && err.status >= 400 && err.status < 500
         ? err.status
