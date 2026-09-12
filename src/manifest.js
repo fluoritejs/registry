@@ -143,38 +143,44 @@ export function extractManifest(source, packageIdPattern) {
     }
   }
 
-  for (const stmts of containers) {
-    const obj = findManifestObject(stmts);
-    if (!obj || obj.type !== "ObjectExpression") continue;
-    const id = extractProperty(obj, "id");
-    const name = extractProperty(obj, "name");
-    const version = extractProperty(obj, "version");
-    const license = extractProperty(obj, "license");
-    const description = extractProperty(obj, "description");
+  const candidates = containers
+    .map(findManifestObject)
+    .filter((obj) => obj && obj.type === "ObjectExpression");
 
-    if (!id || !name || !version) {
-      throw new Error(
-        "Fluorite manifest is missing required fields (id, name, version)",
-      );
-    }
-    const pkgRe = new RegExp(packageIdPattern);
-    if (!isSafeSegment(id)) {
-      throw new Error(`Invalid extension id: ${id}`);
-    }
-    if (!pkgRe.test(id)) {
-      throw new Error(`Invalid extension id: ${id}`);
-    }
-    if (!semver.valid(version)) {
-      throw new Error(`Invalid version: ${version}`);
-    }
-    return {
-      id,
-      name,
-      version,
-      license: license || "",
-      description: description || "",
-    };
+  if (candidates.length > 1) {
+    throw new Error("Duplicate Fluorite manifest definitions");
+  }
+  if (candidates.length === 0) {
+    throw new Error("No Fluorite manifest found in source");
   }
 
-  throw new Error("No Fluorite manifest found in source");
+  const obj = candidates[0];
+  const id = extractProperty(obj, "id");
+  const name = extractProperty(obj, "name");
+  const version = extractProperty(obj, "version");
+  const license = extractProperty(obj, "license");
+  const description = extractProperty(obj, "description");
+
+  if (!id || !name || !version) {
+    throw new Error(
+      "Fluorite manifest is missing required fields (id, name, version)",
+    );
+  }
+  const pkgRe = new RegExp(packageIdPattern);
+  if (!isSafeSegment(id)) {
+    throw new Error(`Invalid extension id: ${id}`);
+  }
+  if (!pkgRe.test(id)) {
+    throw new Error(`Invalid extension id: ${id}`);
+  }
+  if (!semver.valid(version)) {
+    throw new Error(`Invalid version: ${version}`);
+  }
+  return {
+    id,
+    name,
+    version,
+    license: license || "",
+    description: description || "",
+  };
 }
