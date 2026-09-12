@@ -286,7 +286,9 @@ components:
           format: date-time
         totalDownloads:
           type: integer
-          description: Sum of downloads across all versions of this extension.
+          description: >-
+            Sum of downloads across the published, non-yanked versions of
+            this extension.
 
     Extension:
       type: object
@@ -473,6 +475,8 @@ paths:
       responses:
         "204":
           description: Logged out.
+        "401":
+          description: Missing or invalid bearer token.
         "403":
           $ref: "#/components/responses/TermsAcceptanceRequired"
 

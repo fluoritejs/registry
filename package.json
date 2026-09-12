@@ -1,6 +1,7 @@
 {
   "name": "fluorite-registry",
   "version": "0.1.0",
+  "private": true,
   "description": "A Node web registry for extensions created with Fluorite Compiler.",
   "homepage": "https://github.com/fluoritejs/registry#readme",
   "bugs": {
