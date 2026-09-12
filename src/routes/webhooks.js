@@ -131,6 +131,17 @@ router.patch("/:id", async (req, res) => {
   }
 
   const { url, events, enabled } = req.body ?? {};
+  if (url === undefined && events === undefined && enabled === undefined) {
+    return res
+      .status(400)
+      .json({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Provide at least one of url, events, or enabled.",
+          field: null,
+        },
+      });
+  }
   if (url !== undefined) {
     if (typeof url !== "string" || !isSafeWebhookUrl(url)) {
       return res
