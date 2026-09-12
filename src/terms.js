@@ -10,6 +10,7 @@ import {
 import { join, resolve } from "node:path";
 import yaml from "js-yaml";
 import { getConfig } from "./config.js";
+import { getStmt } from "./db.js";
 
 function manifestPath(termsDir) {
   return join(termsDir, "manifest.yaml");
@@ -103,7 +104,16 @@ export class TermsVersionConflictError extends Error {
   }
 }
 
-function runPublishPair(termsDir, name, content, label, version) {
+async function runPublishPair(termsDir, name, content, label, version) {
+  await getStmt("lockTermsDir").run(`terms-${resolve(termsDir)}`);
+  try {
+    return runPublishPairSync(termsDir, name, content, label, version);
+  } finally {
+    await getStmt("unlockTermsDir").run(`terms-${resolve(termsDir)}`);
+  }
+}
+
+function runPublishPairSync(termsDir, name, content, label, version) {
   assertSafeVersion(version);
   mkdirSync(termsDir, { recursive: true });
   const contentFile = contentPath(termsDir, name, version);
