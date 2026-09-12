@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { existsSync } from "node:fs";
 import { nowIso, requireSession, adminMiddleware } from "../auth.js";
 import { getConfig } from "../config.js";
 import { getStmt } from "../db.js";
@@ -36,7 +37,9 @@ function sendDocument(res, name, label) {
   const content = readContent(termsDir(), name, version);
   if (content === null) return notFound(res, name);
   res.set("Content-Type", "text/markdown; charset=utf-8");
-  res.set("X-Terms-Version", version);
+  if (existsSync(contentPath(termsDir(), name, version))) {
+    res.set("X-Terms-Version", version);
+  }
   res.send(content);
 }
 
