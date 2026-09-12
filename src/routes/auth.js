@@ -270,15 +270,13 @@ router.post("/logout", async (req, res) => {
 
 router.get("/sessions", sessionAuth, async (req, res) => {
   const sessions = await getStmt("listAuthTokens").all(req.auth.user.id);
-  const now = new Date();
-  const active = sessions
-    .filter((s) => new Date(s.expires_at) > now)
-    .map((s) => ({
+  res.json(
+    sessions.map((s) => ({
       id: s.id,
       createdAt: s.created_at,
       expiresAt: s.expires_at,
-    }));
-  res.json(active);
+    })),
+  );
 });
 
 router.delete("/sessions", sessionAuth, async (req, res) => {
@@ -331,17 +329,6 @@ router.get("/tokens", sessionAuth, async (req, res) => {
 
 router.post("/tokens", sessionAuth, async (req, res) => {
   const { name, scopes } = req.body ?? {};
-  if (!scopes || !Array.isArray(scopes) || scopes.length === 0) {
-    return res
-      .status(400)
-      .json({
-        error: {
-          code: "VALIDATION_ERROR",
-          message: "name and scopes are required.",
-          field: null,
-        },
-      });
-  }
   if (typeof name !== "string" || name.trim().length === 0) {
     return res
       .status(400)
@@ -350,6 +337,17 @@ router.post("/tokens", sessionAuth, async (req, res) => {
           code: "VALIDATION_ERROR",
           message: "name must be a non-empty string.",
           field: "name",
+        },
+      });
+  }
+  if (!Array.isArray(scopes) || scopes.length === 0) {
+    return res
+      .status(400)
+      .json({
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "scopes must be a non-empty array.",
+          field: "scopes",
         },
       });
   }
