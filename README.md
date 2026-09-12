@@ -91,13 +91,14 @@
 
 > **Important:** You will need Docker or Podman for this.
 
-1. Copy the [example compose file](compose.example.yaml), [deployment file](deployment.example.yaml), and [config file](config.example.yaml) into the directory you'll use for registry storage, renaming the `.example` suffix off:
+1. Clone the repository (the [example compose file](compose.example.yaml), [deployment file](deployment.example.yaml), and [config file](config.example.yaml) live in the checkout), then copy those files into the directory you'll use for registry storage, renaming the `.example` suffix off:
 
    ```bash
+   git clone https://github.com/fluoritejs/registry
    mkdir registry-storage
-   cp compose.example.yaml registry-storage/compose.yaml
-   cp deployment.example.yaml registry-storage/deployment.yaml
-   cp config.example.yaml registry-storage/config.yaml
+   cp registry/compose.example.yaml registry-storage/compose.yaml
+   cp registry/deployment.example.yaml registry-storage/deployment.yaml
+   cp registry/config.example.yaml registry-storage/config.yaml
    ```
 
 2. Make sure to configure deployment and general configuration data.

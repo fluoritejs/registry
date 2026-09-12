@@ -67,7 +67,7 @@ admin:
 
 `firstUserBecomesAdmin` and `bootstrapAccount` are mutually exclusive. Setting both, or setting `firstUserBecomesAdmin: false` without a `bootstrapAccount`, causes a startup error.
 
-The bootstrap password is resolved at startup in this order: `passwordFromEnv` (an environment variable name), then `passwordFile` (a path whose first line is the password), falling back to `password` for explicit overrides. Placeholders (`change-me-immediately`, `REPLACE_ME`) and passwords shorter than 8 characters are rejected. Once the account exists the password is hashed and discarded, so the environment variable or secret file can be removed or rotated safely after first boot.
+Exactly one of `passwordFromEnv` (an environment variable name) or `passwordFile` (a path whose first line is the password) must be configured; a `password` inline value is rejected. Placeholders (`change-me-immediately`, `REPLACE_ME`) and passwords shorter than 8 characters are rejected. Once the account exists the password is hashed and discarded, so the environment variable or secret file can be removed or rotated safely after first boot.
 
 ## config.yaml
 

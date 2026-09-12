@@ -887,6 +887,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/VersionMetadata"
         "400":
+          description: "400 Invalid request. VERSION_TOO_LOW when the version does not exceed the highest published version."
           $ref: "#/components/responses/Error"
         "403":
           $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
