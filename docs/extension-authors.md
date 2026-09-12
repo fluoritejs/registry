@@ -18,12 +18,14 @@ The response includes a `token`. Save it for subsequent requests.
 
 Every extension source file must contain a Fluorite manifest — an object literal with `id`, `name`, and `version` assigned to a `Fluorite` global. The server parses the source AST to extract it; your code is never executed. **If you're using Fluorite Compiler like most consumers will, you won't have to worry about this part.**
 
+The manifest key can be either `Fluorite.manifest` or `Fluorite.meta`; both are accepted. Use `manifest` in hand-written source:
+
 ```js
 (function (Scratch) {
   "use strict";
 
   const Fluorite = {
-    meta: {
+    manifest: {
       class: "MyExtension",
       name: "My Extension",
       id: "my-extension",
@@ -36,7 +38,7 @@ Every extension source file must contain a Fluorite manifest — an object liter
 
   class MyExtension {
     getInfo() {
-      return { id: Fluorite.meta.id, name: Fluorite.meta.name, ... };
+      return { id: Fluorite.manifest.id, name: Fluorite.manifest.name, ... };
     }
   }
 
