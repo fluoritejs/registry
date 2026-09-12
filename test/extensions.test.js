@@ -28,6 +28,7 @@ describe("Manifest extraction", () => {
   const pattern = CONFIG_DEFAULTS.publishing.packageIdPattern;
 
   before(() => setConfig(structuredClone(CONFIG_DEFAULTS)));
+  after(() => setConfig(structuredClone(CONFIG_DEFAULTS)));
 
   it("extracts a valid manifest", () => {
     const manifest = extractManifest(VALID_SOURCE, pattern);
@@ -888,5 +889,13 @@ describe("Interrupted publish recovery", () => {
       "1.0.0",
     );
     assert.strictEqual(v, undefined, "orphaned staging row must be deleted");
+
+    const recovered = await getStmt("getVersion").get(
+      "recoveruser",
+      "interrupted-ext",
+      "1.0.0",
+    );
+    assert.ok(recovered, "recovered staging version must remain");
+    assert.strictEqual(recovered.status, "pending");
   });
 });
