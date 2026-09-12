@@ -30,9 +30,17 @@ function requireEncryptionKey() {
 }
 
 export function encryptSecret(plaintext, overrideKey) {
-  const key = overrideKey
-    ? Buffer.from(overrideKey, "hex")
-    : requireEncryptionKey();
+  let key;
+  if (overrideKey) {
+    if (!/^[0-9a-f]{64}$/i.test(overrideKey)) {
+      throw new Error(
+        "webhooks.encryptionKey must be a 64-character hex string (openssl rand -hex 32).",
+      );
+    }
+    key = Buffer.from(overrideKey, "hex");
+  } else {
+    key = requireEncryptionKey();
+  }
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
   const encrypted = Buffer.concat([
@@ -241,25 +249,19 @@ function attemptSend(url, body, headers, pinned, deadline) {
   });
 }
 
-function sendHttps(url, body, headers, pinned, deadline) {
-  return new Promise((resolve, reject) => {
-    (async () => {
-      let lastErr;
-      for (const candidate of pinned) {
-        if (deadline - Date.now() <= 0) {
-          reject(new Error("Webhook delivery timed out"));
-          return;
-        }
-        try {
-          resolve(await attemptSend(url, body, headers, candidate, deadline));
-          return;
-        } catch (err) {
-          lastErr = err;
-        }
-      }
-      reject(lastErr);
-    })();
-  });
+async function sendHttps(url, body, headers, pinned, deadline) {
+  let lastErr;
+  for (const candidate of pinned) {
+    if (deadline - Date.now() <= 0) {
+      throw new Error("Webhook delivery timed out");
+    }
+    try {
+      return await attemptSend(url, body, headers, candidate, deadline);
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr;
 }
 
 function drainResponse(res, deadline, maxResponseBodySize) {
@@ -303,6 +305,7 @@ async function deliverOnce(
   cfg,
   redirectCount,
   deadline,
+  origin,
 ) {
   if (redirectCount > MAX_REDIRECTS) {
     throw permanentError("Webhook redirect limit exceeded.");
@@ -327,7 +330,20 @@ async function deliverOnce(
   if (isRedirect(res.statusCode)) {
     if (res.headers.location) {
       const next = new URL(res.headers.location, url).toString();
-      return deliverOnce(next, body, headers, cfg, redirectCount + 1, deadline);
+      if (new URL(next).origin !== origin) {
+        throw permanentError(
+          `Refusing cross-origin webhook redirect to ${next}.`,
+        );
+      }
+      return deliverOnce(
+        next,
+        body,
+        headers,
+        cfg,
+        redirectCount + 1,
+        deadline,
+        origin,
+      );
     }
     throw permanentError(
       `Webhook destination returned ${res.statusCode} without a Location header.`,
@@ -362,6 +378,7 @@ export async function deliverWithRetry(wh, body, event, cfg = {}) {
         deliveryCfg,
         0,
         deadline,
+        new URL(wh.url).origin,
       );
       if (status >= 200 && status < 300) {
         log.debug(`Webhook delivered to ${wh.id} (${event})`);

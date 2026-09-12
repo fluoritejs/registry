@@ -230,6 +230,13 @@ describe("Webhooks", () => {
     assert.strictEqual(decryptSecret(encrypted), secret);
   });
 
+  it("encryptSecret rejects a malformed override key", () => {
+    assert.throws(
+      () => encryptSecret("a-secret", "not-64-hex"),
+      /encryptionKey/,
+    );
+  });
+
   it("computes the documented X-Fluorite-Signature HMAC", () => {
     const secret = crypto.randomBytes(32).toString("hex");
     const encryptedSecret = encryptSecret(secret, encryptionKey);
