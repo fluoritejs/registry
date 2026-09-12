@@ -162,6 +162,9 @@ export async function reconcileStaging(db) {
       }
     } else {
       try {
+        // Unlink before deleting on purpose: if the server dies between the
+        // two, the pending_delete row survives and the next sweep removes it
+        // once the blob reads as absent.
         if (existsSync(row.blob_path)) unlinkSync(row.blob_path);
         await db.unsafe("DELETE FROM versions WHERE id = $1", [row.id]);
         log.warn(
@@ -443,19 +446,19 @@ export function prepare(db) {
   s("getNotification", "SELECT * FROM notifications WHERE id = $1");
   s(
     "listNotifications",
-    "SELECT * FROM notifications WHERE user_id = $1 ORDER BY id DESC LIMIT $2 OFFSET $3",
+    "SELECT * FROM notifications WHERE user_id = $1 AND id < $2 ORDER BY id DESC LIMIT $3",
   );
   s(
     "listNotificationsRead",
-    "SELECT * FROM notifications WHERE user_id = $1 AND read_at IS NOT NULL ORDER BY id DESC LIMIT $2 OFFSET $3",
+    "SELECT * FROM notifications WHERE user_id = $1 AND read_at IS NOT NULL AND id < $2 ORDER BY id DESC LIMIT $3",
   );
   s(
     "listNotificationsUnread",
-    "SELECT * FROM notifications WHERE user_id = $1 AND read_at IS NULL ORDER BY id DESC LIMIT $2 OFFSET $3",
+    "SELECT * FROM notifications WHERE user_id = $1 AND read_at IS NULL AND id < $2 ORDER BY id DESC LIMIT $3",
   );
   s(
     "markNotificationRead",
-    "UPDATE notifications SET read_at = $1 WHERE id = $2 RETURNING *",
+    "UPDATE notifications SET read_at = $1 WHERE id = $2 AND read_at IS NULL RETURNING *",
   );
   s("deleteNotification", "DELETE FROM notifications WHERE id = $1");
   s(
@@ -524,6 +527,10 @@ export function listVersionsByExtensionBatched(pairs) {
 }
 
 export async function runTransaction(fn) {
+  if (txStore.getStore()) {
+    await fn();
+    return;
+  }
   await base.begin(async (tx) => {
     await txStore.run({ tx }, async () => {
       await fn();
@@ -535,6 +542,15 @@ export async function deleteUserCascade(id) {
   const collected = [];
   await runTransaction(async () => {
     await conn().unsafe("SELECT id FROM users WHERE id = $1 FOR UPDATE", [id]);
+    const target = await getStmt("getUserById").get(id);
+    if (target.type === "admin") {
+      const { count } = await getStmt("countAdminsForUpdate").get();
+      if (count <= 1) {
+        const err = new Error("Cannot delete the only remaining admin.");
+        err.code = "LAST_ADMIN";
+        throw err;
+      }
+    }
     const versions = await getStmt("listVersionsByUser").all(id);
     for (const v of versions) collected.push(v);
   });
