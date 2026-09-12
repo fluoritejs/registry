@@ -859,29 +859,23 @@ describe("Interrupted publish recovery", () => {
   after(() => env.cleanup());
 
   async function insertStagingRow(namespace, packageId, version) {
-    const user = await getStmt("getUserByNamespace").get(namespace);
+    const user = await env.db`SELECT id FROM users WHERE namespace = ${namespace}`.first();
     const path = blobPath(
       env.deployment.storage.dataDir,
       namespace,
       packageId,
       version,
     );
-    await getStmt("createVersion").run(
-      user.id,
-      packageId,
-      version,
-      "staging",
-      JSON.stringify({
+    await env.db`
+      INSERT INTO versions (owner_id, package_id, version, status, meta_json, blob_path, created_at, published_at)
+      VALUES (${user.id}, ${packageId}, ${version}, 'staging', ${JSON.stringify({
         id: packageId,
         name: "Interrupted",
         version,
         license: "MIT",
         description: "d",
-      }),
-      path,
-      new Date().toISOString(),
-      null,
-    );
+      })}, ${path}, ${new Date().toISOString()}, null)
+    `;
     return path;
   }
 
