@@ -453,7 +453,13 @@ export async function fireWebhooks(event, payload) {
 
   const jobs = [];
   for (const wh of webhooks) {
-    const events = JSON.parse(wh.events);
+    let events;
+    try {
+      events = JSON.parse(wh.events);
+    } catch {
+      log.warn(`Skipping webhook ${wh.id} with malformed events`);
+      continue;
+    }
     if (!events.includes(event)) continue;
     if (!wh.secret || !isSafeWebhookUrl(wh.url)) {
       log.warn(`Refusing unsafe webhook delivery to ${wh.url}`);
