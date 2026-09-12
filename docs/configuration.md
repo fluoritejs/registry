@@ -60,10 +60,10 @@ admin:
 
 ### admin
 
-| Key                     | Default | Description                                                                                                                                            |
-| ----------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `firstUserBecomesAdmin` | `true`  | First signup gets `type: admin` and `trusted: true`.                                                                                                   |
-| `bootstrapAccount`      | `null`  | If set, creates an admin user on startup. Requires `namespace` and one of `password`, `passwordFromEnv`, or `passwordFile`; `displayName` is optional. |
+| Key                     | Default | Description                                                                                                                                                                                                                                                                              |
+| ----------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `firstUserBecomesAdmin` | `true`  | First signup gets `type: admin` and `trusted: true`.                                                                                                                                                                                                                                     |
+| `bootstrapAccount`      | `null`  | If set, creates an admin user on startup. Requires `namespace` and exactly one of `passwordFromEnv` or `passwordFile`; `displayName` is optional. The password never appears in this file — it is read from the environment or a secret file, hashed once on first boot, then discarded. |
 
 `firstUserBecomesAdmin` and `bootstrapAccount` are mutually exclusive. Setting both, or setting `firstUserBecomesAdmin: false` without a `bootstrapAccount`, causes a startup error.
 
