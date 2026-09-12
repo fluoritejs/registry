@@ -99,7 +99,7 @@ function shutdown() {
     log.info("HTTP server closed");
     let code = 0;
     try {
-      await db.end();
+      if (db) await db.end();
       log.info("Database connections closed");
     } catch (err) {
       log.error(`Failed to close database connections: ${err.message}`);
@@ -130,6 +130,7 @@ process.on("SIGHUP", () => {
 
 main()
   .then(() => {
+    if (shuttingDown) return;
     server.listen(PORT, () => {
       log.info(`Fluorite Registry listening on port ${PORT}`);
     });
