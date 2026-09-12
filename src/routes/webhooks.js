@@ -33,10 +33,17 @@ function validateEvents(events) {
 }
 
 function webhookJson(wh) {
+  let events;
+  try {
+    events = JSON.parse(wh.events);
+  } catch {
+    log.warn(`Webhook ${wh.id} has malformed events`);
+    events = [];
+  }
   return {
     id: wh.id,
     url: wh.url,
-    events: JSON.parse(wh.events),
+    events,
     enabled: !!wh.enabled,
     createdAt: wh.created_at,
   };
