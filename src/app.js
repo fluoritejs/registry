@@ -72,15 +72,19 @@ export function createApp() {
   app.use(
     "/v0",
     (req, res, next) => {
-      const termPaths = [
-        "/terms",
-        "/privacy",
+      const publicGets = ["/terms", "/privacy"];
+      const protectedPaths = [
         "/terms/accept",
         "/admin/terms",
         "/admin/privacy",
       ];
-      if (!termPaths.includes(req.path)) return next();
-      if (req.method === "GET") return next();
+      if (req.method === "GET" && publicGets.includes(req.path)) return next();
+      if (
+        !publicGets.includes(req.path) &&
+        !protectedPaths.includes(req.path)
+      ) {
+        return next();
+      }
       authMiddleware(req, res, next);
     },
     termsRoutes,
