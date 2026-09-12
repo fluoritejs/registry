@@ -27,19 +27,19 @@ const publishChains = new Map();
 
 export function loadManifest(termsDir) {
   const path = manifestPath(termsDir);
-  let mtime;
+  let stat;
   try {
-    if (existsSync(path)) mtime = statSync(path).mtimeMs;
+    if (existsSync(path)) stat = statSync(path);
   } catch (err) {
     if (getConfig()?.terms?.enforce === true) throw err;
-    mtime = undefined;
+    stat = undefined;
   }
   const cached = manifestCache.get(path);
-  if (cached && cached.mtime === mtime) {
+  if (cached && cached.mtime === stat?.mtimeMs && cached.size === stat?.size) {
     return { ...cached.manifest };
   }
   let manifest;
-  if (mtime === undefined) {
+  if (stat === undefined) {
     manifest = { tosVersion: "", privacyVersion: "" };
   } else {
     try {
@@ -58,7 +58,7 @@ export function loadManifest(termsDir) {
       }
     }
   }
-  manifestCache.set(path, { mtime, manifest });
+  manifestCache.set(path, { mtime: stat?.mtimeMs, size: stat?.size, manifest });
   return { ...manifest };
 }
 
@@ -119,8 +119,10 @@ function runPublishPairSync(termsDir, name, content, label, version) {
   const manifestFile = manifestPath(termsDir);
   const manifest = loadManifest(termsDir);
   if (manifest[label] === version) {
-    const existing = readContent(termsDir, name, version);
-    if (existing !== content) {
+    const existing = existsSync(contentFile)
+      ? readFileSync(contentFile, "utf8")
+      : null;
+    if (existing !== null && existing !== content) {
       throw new TermsVersionConflictError(label, version);
     }
   }
