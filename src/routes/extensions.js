@@ -246,6 +246,17 @@ router.delete(
     }
 
     const versions = await getStmt("listVersionsByOwner").all(namespace, id);
+    if (!versions.length) {
+      return res
+        .status(404)
+        .json({
+          error: {
+            code: "NOT_FOUND",
+            message: "Extension not found.",
+            field: null,
+          },
+        });
+    }
     let pending = false;
     for (const v of versions) {
       if (!(await finalizeBlobDelete(v))) pending = true;
@@ -640,6 +651,7 @@ router.get("/:namespace/:id/versions/:version", async (req, res) => {
 
 router.patch(
   "/:namespace/:id/versions/:version",
+  authMiddleware,
   requireSession,
   adminMiddleware,
   async (req, res) => {
@@ -714,10 +726,16 @@ router.patch(
 
     const event =
       newStatus === "approved" ? "version.approved" : "version.rejected";
-    await fireWebhooks(event, {
-      extension: { namespace, id },
-      version: { version, status: dbStatus },
-    });
+    try {
+      await fireWebhooks(event, {
+        extension: { namespace, id },
+        version: { version, status: dbStatus },
+      });
+    } catch (err) {
+      log.error(
+        `Webhook delivery failed for ${namespace}/${id}@${version}: ${err.message}`,
+      );
+    }
 
     log.info(`Version ${namespace}/${id}@${version} ${newStatus}`);
 
@@ -858,10 +876,16 @@ router.patch(
     );
 
     if (yanked && !wasYanked) {
-      await fireWebhooks("version.yanked", {
-        extension: { namespace, id },
-        version: { version, status: v.status },
-      });
+      try {
+        await fireWebhooks("version.yanked", {
+          extension: { namespace, id },
+          version: { version, status: v.status },
+        });
+      } catch (err) {
+        log.error(
+          `Webhook delivery failed for ${namespace}/${id}@${version}: ${err.message}`,
+        );
+      }
     }
 
     const updated = await getStmt("getVersion").get(namespace, id, version);
