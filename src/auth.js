@@ -7,6 +7,10 @@ import { loadManifest } from "./terms.js";
 const scryptAsync = promisify(crypto.scrypt);
 const SCRYPT_MAXMEM = 256 * 1024 * 1024;
 
+function scryptMaxmem(N, r, p) {
+  return Math.max(SCRYPT_MAXMEM, 128 * N * r * p + 65536);
+}
+
 export async function hashPassword(password) {
   const cfg = getConfig().auth.passwordHashing;
   const salt = crypto.randomBytes(16).toString("hex");
@@ -14,13 +18,25 @@ export async function hashPassword(password) {
     N: cfg.N,
     r: cfg.r,
     p: cfg.p,
-    maxmem: SCRYPT_MAXMEM,
+    maxmem: scryptMaxmem(cfg.N, cfg.r, cfg.p),
   });
-  return `${salt}:${hash.toString("hex")}`;
+  return `${cfg.N}:${cfg.r}:${cfg.p}:${salt}:${hash.toString("hex")}`;
 }
 
 export async function verifyPassword(password, stored) {
-  const [salt, hex] = stored.split(":");
+  const parts = stored.split(":");
+  let N, r, p, salt, hex;
+  if (parts.length === 5) {
+    [N, r, p, salt, hex] = parts;
+  } else if (parts.length === 2) {
+    [salt, hex] = parts;
+    const cfg = getConfig().auth.passwordHashing;
+    N = cfg.N;
+    r = cfg.r;
+    p = cfg.p;
+  } else {
+    return false;
+  }
   if (
     !salt ||
     typeof hex !== "string" ||
@@ -29,14 +45,33 @@ export async function verifyPassword(password, stored) {
   ) {
     return false;
   }
-  const cfg = getConfig().auth.passwordHashing;
-  const hash = await scryptAsync(password, salt, 64, {
-    N: cfg.N,
-    r: cfg.r,
-    p: cfg.p,
-    maxmem: SCRYPT_MAXMEM,
-  });
-  return crypto.timingSafeEqual(Buffer.from(hex, "hex"), hash);
+  const n = Number(N);
+  const rr = Number(r);
+  const pp = Number(p);
+  if (
+    !Number.isInteger(n) ||
+    !Number.isInteger(rr) ||
+    !Number.isInteger(pp) ||
+    n < 1024 ||
+    n > 2 ** 18 ||
+    rr < 1 ||
+    rr > 32 ||
+    pp < 1 ||
+    pp > 8
+  ) {
+    return false;
+  }
+  try {
+    const hash = await scryptAsync(password, salt, 64, {
+      N: n,
+      r: rr,
+      p: pp,
+      maxmem: scryptMaxmem(n, rr, pp),
+    });
+    return crypto.timingSafeEqual(Buffer.from(hex, "hex"), hash);
+  } catch {
+    return false;
+  }
 }
 
 export function generateToken() {
