@@ -22,127 +22,139 @@ import { openTestDb } from "./helpers.js";
 describe("Migration & recovery", () => {
   it("creates all tables", async () => {
     const { db, cleanup } = await openTestDb();
-    await migrate(db);
-    prepare(db);
+    try {
+      await migrate(db);
+      prepare(db);
 
-    const tables = await db.unsafe(
-      "SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema() ORDER BY table_name",
-    );
-    const names = tables.map((t) => t.table_name);
-    assert.ok(names.includes("users"));
-    assert.ok(names.includes("auth_tokens"));
-    assert.ok(names.includes("automation_tokens"));
-    assert.ok(names.includes("versions"));
-    assert.ok(names.includes("notifications"));
-    assert.ok(names.includes("webhooks"));
-    await cleanup();
+      const tables = await db.unsafe(
+        "SELECT table_name FROM information_schema.tables WHERE table_schema = current_schema() ORDER BY table_name",
+      );
+      const names = tables.map((t) => t.table_name);
+      assert.ok(names.includes("users"));
+      assert.ok(names.includes("auth_tokens"));
+      assert.ok(names.includes("automation_tokens"));
+      assert.ok(names.includes("versions"));
+      assert.ok(names.includes("notifications"));
+      assert.ok(names.includes("webhooks"));
+    } finally {
+      await cleanup();
+    }
   });
 
   it("promotes staging version when blob exists", async () => {
     const dir = mkdtempSync(join(tmpdir(), "recovery-"));
     const { db, cleanup } = await openTestDb();
-    await migrate(db);
-    prepare(db);
+    try {
+      await migrate(db);
+      prepare(db);
 
-    const user = await getStmt("createUser").get(
-      "testuser",
-      "Test",
-      "hash",
-      "normal",
-      1,
-    );
-    const bp = blobPath(dir, "testuser", "ext", "1.0.0");
-    mkdirSync(join(dir, "blobs", "testuser", "ext"), { recursive: true });
-    writeFileSync(bp, "// extension code");
+      const user = await getStmt("createUser").get(
+        "testuser",
+        "Test",
+        "hash",
+        "normal",
+        1,
+      );
+      const bp = blobPath(dir, "testuser", "ext", "1.0.0");
+      mkdirSync(join(dir, "blobs", "testuser", "ext"), { recursive: true });
+      writeFileSync(bp, "// extension code");
 
-    await getStmt("createVersion").run(
-      user.id,
-      "ext",
-      "1.0.0",
-      "staging",
-      "{}",
-      bp,
-      new Date().toISOString(),
-      null,
-    );
+      await getStmt("createVersion").run(
+        user.id,
+        "ext",
+        "1.0.0",
+        "staging",
+        "{}",
+        bp,
+        new Date().toISOString(),
+        null,
+      );
 
-    await reconcileStaging(db, dir);
+      await reconcileStaging(db);
 
-    const v = await getStmt("getVersion").get("testuser", "ext", "1.0.0");
-    assert.strictEqual(v.status, "pending");
-    await cleanup();
-    rmSync(dir, { recursive: true, force: true });
+      const v = await getStmt("getVersion").get("testuser", "ext", "1.0.0");
+      assert.strictEqual(v.status, "pending");
+    } finally {
+      await cleanup();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("deletes staging version when blob is missing", async () => {
     const dir = mkdtempSync(join(tmpdir(), "recovery-"));
     const { db, cleanup } = await openTestDb();
-    await migrate(db);
-    prepare(db);
+    try {
+      await migrate(db);
+      prepare(db);
 
-    const user = await getStmt("createUser").get(
-      "testuser2",
-      "Test2",
-      "hash",
-      "normal",
-      1,
-    );
-    const bp = blobPath(dir, "testuser2", "ext", "2.0.0");
+      const user = await getStmt("createUser").get(
+        "testuser2",
+        "Test2",
+        "hash",
+        "normal",
+        1,
+      );
+      const bp = blobPath(dir, "testuser2", "ext", "2.0.0");
 
-    await getStmt("createVersion").run(
-      user.id,
-      "ext",
-      "2.0.0",
-      "staging",
-      "{}",
-      bp,
-      new Date().toISOString(),
-      null,
-    );
+      await getStmt("createVersion").run(
+        user.id,
+        "ext",
+        "2.0.0",
+        "staging",
+        "{}",
+        bp,
+        new Date().toISOString(),
+        null,
+      );
 
-    await reconcileStaging(db, dir);
+      await reconcileStaging(db);
 
-    const v = await getStmt("getVersion").get("testuser2", "ext", "2.0.0");
-    assert.strictEqual(v, undefined);
-    await cleanup();
-    rmSync(dir, { recursive: true, force: true });
+      const v = await getStmt("getVersion").get("testuser2", "ext", "2.0.0");
+      assert.strictEqual(v, undefined);
+    } finally {
+      await cleanup();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("promotes pending_delete versions that still have their blob", async () => {
     const dir = mkdtempSync(join(tmpdir(), "recovery-"));
     const { db, cleanup } = await openTestDb();
-    await migrate(db);
-    prepare(db);
+    try {
+      await migrate(db);
+      prepare(db);
 
-    const user = await getStmt("createUser").get(
-      "testuser3",
-      "Test3",
-      "hash",
-      "normal",
-      1,
-    );
-    const bp = blobPath(dir, "testuser3", "ext", "3.0.0");
-    mkdirSync(join(dir, "blobs", "testuser3", "ext"), { recursive: true });
-    writeFileSync(bp, "// extension code");
+      const user = await getStmt("createUser").get(
+        "testuser3",
+        "Test3",
+        "hash",
+        "normal",
+        1,
+      );
+      const bp = blobPath(dir, "testuser3", "ext", "3.0.0");
+      mkdirSync(join(dir, "blobs", "testuser3", "ext"), { recursive: true });
+      writeFileSync(bp, "// extension code");
 
-    await getStmt("createVersion").run(
-      user.id,
-      "ext",
-      "3.0.0",
-      "pending_delete",
-      "{}",
-      bp,
-      new Date().toISOString(),
-      null,
-    );
+      await getStmt("createVersion").run(
+        user.id,
+        "ext",
+        "3.0.0",
+        "pending_delete",
+        "{}",
+        bp,
+        new Date().toISOString(),
+        null,
+      );
 
-    await reconcileStaging(db, dir);
+      await reconcileStaging(db);
 
-    const v = await getStmt("getVersion").get("testuser3", "ext", "3.0.0");
-    assert.strictEqual(v, undefined);
-    assert.ok(!existsSync(bp));
-    await cleanup();
-    rmSync(dir, { recursive: true, force: true });
+      const v = await getStmt("getVersion").get("testuser3", "ext", "3.0.0");
+      assert.strictEqual(v, undefined);
+      assert.ok(!existsSync(bp));
+    } finally {
+      await cleanup();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("cleans up orphaned temp blob files", () => {

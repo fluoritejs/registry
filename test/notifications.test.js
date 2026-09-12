@@ -86,6 +86,20 @@ describe("Notifications", () => {
   });
 
   it("bulk-deletes read notifications", async () => {
+    const user = await getStmt("getUserByNamespace").get("notifuser");
+    const created = await getStmt("createNotification").get(
+      user.id,
+      "Bulk delete target",
+      "test-ext",
+      "1.0.0",
+      null,
+      new Date().toISOString(),
+    );
+    await getStmt("markNotificationRead").run(
+      new Date().toISOString(),
+      created.id,
+    );
+
     const res = await request(
       env.app,
       "DELETE",
@@ -101,7 +115,9 @@ describe("Notifications", () => {
       { headers: authHeaders(userToken) },
     );
     assert.strictEqual(list.status, 200);
-    assert.strictEqual(list.body.notifications.length, 0);
+    assert.ok(
+      !list.body.notifications.some((n) => n.id === String(created.id)),
+    );
   });
 
   it("returns unread count header", async () => {

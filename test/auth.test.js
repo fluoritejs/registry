@@ -52,7 +52,7 @@ describe("Auth", () => {
         const res = await signup(isolated.app, "newuser", "password123");
         assert.strictEqual(res.status, 201);
       } finally {
-        isolated.cleanup();
+        await isolated.cleanup();
       }
     });
   });
