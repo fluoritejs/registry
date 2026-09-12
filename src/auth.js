@@ -184,11 +184,15 @@ export function rateLimitMiddleware(type) {
           },
         });
     }
-    if (type === "login") {
-      recordRateLimit(key, cfg.windowMinutes);
-    }
     next();
   };
+}
+
+export function recordLoginFailure(req) {
+  const cfg = getConfig().auth.rateLimit.login;
+  const ns = String(req.body?.namespace || "unknown").slice(0, 64);
+  const key = `login:${ns}:${req.ip}`;
+  recordRateLimit(key, cfg.windowMinutes);
 }
 
 export async function authMiddleware(req, res, next) {

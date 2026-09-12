@@ -13,6 +13,7 @@ import {
   requireSession,
   userJson,
   recordSignupSuccess,
+  recordLoginFailure,
 } from "../auth.js";
 import { getConfig, getDeployment } from "../config.js";
 import { isSafeSegment } from "../validate.js";
@@ -219,6 +220,7 @@ router.post("/login", rateLimitMiddleware("login"), async (req, res) => {
   const user = await getStmt("getUserByNamespace").get(namespace);
   if (!user || !user.password_hash) {
     await verifyOrDummy(password, null);
+    recordLoginFailure(req);
     return res
       .status(401)
       .json({
@@ -231,6 +233,7 @@ router.post("/login", rateLimitMiddleware("login"), async (req, res) => {
   }
 
   if (!(await verifyOrDummy(password, user.password_hash))) {
+    recordLoginFailure(req);
     return res
       .status(401)
       .json({
