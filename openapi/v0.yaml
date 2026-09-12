@@ -5,6 +5,8 @@ info:
   description: >
     Registry for publishing and fetching compiled TurboWarp extensions built
     with the Fluorite Compiler. All endpoints are versioned under /v0.
+    Deployments with server.requireHttps reject non-loopback plain-HTTP
+    requests with 403 HTTPS_REQUIRED.
 servers:
   - url: https://fluorite.sdisk.us/v0
 
@@ -123,6 +125,14 @@ components:
         (FORBIDDEN) or the session user has not accepted the current Terms of
         Service and Privacy Policy versions (TERMS_ACCEPTANCE_REQUIRED; call
         POST /terms/accept with the current versions).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    HttpsRequired:
+      description: >-
+        The deployment enforces TLS (server.requireHttps) and the request
+        came from a non-loopback client over plain HTTP (HTTPS_REQUIRED).
       content:
         application/json:
           schema:
@@ -891,7 +901,8 @@ paths:
         Get a version. Content negotiation determines the response:
         application/json for metadata, application/javascript for the
         compiled code. Fetching the compiled code increments its download
-        counter; fetching metadata does not.         Yanked versions are still
+        counter; fetching metadata does not.
+        Yanked versions are still
         servable (existing consumers keep working) but are flagged.
       security:
         - {}
