@@ -7,6 +7,8 @@ import { loadManifest } from "./terms.js";
 const scryptAsync = promisify(crypto.scrypt);
 const SCRYPT_MAXMEM = 256 * 1024 * 1024;
 
+const LEGACY_SCRYPT_PARAMS = { N: 16384, r: 8, p: 1 };
+
 function scryptMaxmem(N, r, p) {
   return 128 * N * r * p + 65536;
 }
@@ -37,10 +39,9 @@ export async function verifyPassword(password, stored) {
     [N, r, p, salt, hex] = parts;
   } else if (parts.length === 2) {
     [salt, hex] = parts;
-    const cfg = getConfig().auth.passwordHashing;
-    N = cfg.N;
-    r = cfg.r;
-    p = cfg.p;
+    N = LEGACY_SCRYPT_PARAMS.N;
+    r = LEGACY_SCRYPT_PARAMS.r;
+    p = LEGACY_SCRYPT_PARAMS.p;
   } else {
     return false;
   }
@@ -122,6 +123,7 @@ function userJson(user) {
 
 const rateLimitStore = new Map();
 const EXPIRY_SWEEP_BUDGET = 64;
+const MAX_RATE_LIMIT_ENTRIES = 2048;
 
 export function clearRateLimits() {
   rateLimitStore.clear();
@@ -131,15 +133,34 @@ function getOrCreateEntry(key, windowMs) {
   const now = Date.now();
   let entry = rateLimitStore.get(key);
   if (!entry || now - entry.start > entry.windowMs) {
+    if (
+      rateLimitStore.size >= MAX_RATE_LIMIT_ENTRIES &&
+      !rateLimitStore.has(key)
+    ) {
+      let oldestKey = null;
+      let oldestStart = Infinity;
+      for (const [k, e] of rateLimitStore) {
+        if (now - e.start > e.windowMs) {
+          rateLimitStore.delete(k);
+          oldestKey = null;
+          break;
+        }
+        if (e.start < oldestStart) {
+          oldestStart = e.start;
+          oldestKey = k;
+        }
+      }
+      if (oldestKey !== null) rateLimitStore.delete(oldestKey);
+    }
     entry = { start: now, count: 0, windowMs };
     rateLimitStore.set(key, entry);
   }
-  let swept = 0;
+  let inspected = 0;
   for (const [k, e] of rateLimitStore) {
-    if (swept >= EXPIRY_SWEEP_BUDGET) break;
+    if (inspected >= EXPIRY_SWEEP_BUDGET) break;
+    inspected++;
     if (now - e.start > e.windowMs) {
       rateLimitStore.delete(k);
-      swept++;
     }
   }
   return entry;
