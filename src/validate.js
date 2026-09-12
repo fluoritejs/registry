@@ -4,7 +4,7 @@ export function isSafeSegment(value) {
   if (
     typeof value !== "string" ||
     value.length === 0 ||
-    value.length > MAX_SEGMENT_LENGTH ||
+    Buffer.byteLength(value, "utf8") > MAX_SEGMENT_LENGTH ||
     value === "." ||
     value === ".." ||
     /[/\\]/.test(value)
