@@ -2,7 +2,11 @@ import { Router } from "express";
 import { getStmt, deleteUserCascade, runTransaction } from "../db.js";
 import { hashPassword, userJson, requireSession } from "../auth.js";
 import { getConfig } from "../config.js";
-import { parseCursor, encodeCursor, parseLimit } from "../pagination.js";
+import {
+  parseKeysetCursor,
+  encodeKeysetCursor,
+  parseLimit,
+} from "../pagination.js";
 import { isSafeSegment } from "../validate.js";
 import { log } from "../logger.js";
 
@@ -19,15 +23,18 @@ router.get("/", async (req, res) => {
   const maxPageSize = config.listings.maxPageSize;
   const defaultSize = config.listings.defaultPageSize;
   const limit = parseLimit(req.query, defaultSize, maxPageSize);
-  const offset = parseCursor(req.query);
-  const users = await getStmt("listUsers").all(limit + 1, offset);
+  const after = parseKeysetCursor(req.query) ?? 0;
+  const users = await getStmt("listUsers").all(after, limit + 1);
   const sliced = users.slice(0, limit);
-  const nextCursor = users.length > limit ? encodeCursor(offset + limit) : null;
+  const nextCursor =
+    users.length > limit
+      ? encodeKeysetCursor(sliced[sliced.length - 1].id)
+      : null;
   res.json({ users: sliced.map((u) => userJson(u)), nextCursor });
 });
 
-router.post("/", async (req, res) => {
-  if (!req.auth || req.auth.user.type !== "admin") {
+router.post("/", requireSession, async (req, res) => {
+  if (req.auth.user.type !== "admin") {
     return res
       .status(403)
       .json({
@@ -321,6 +328,20 @@ router.patch("/:namespace/role", requireSession, async (req, res) => {
           field: "type",
         },
       });
+  }
+  if (type === "normal" && target.type === "admin") {
+    const { count } = await getStmt("countAdmins").get();
+    if (count <= 1) {
+      return res
+        .status(409)
+        .json({
+          error: {
+            code: "LAST_ADMIN",
+            message: "Cannot demote the only remaining admin.",
+            field: null,
+          },
+        });
+    }
   }
   const updated = await getStmt("updateUserRole").get(type, target.namespace);
   res.json(userJson(updated));
