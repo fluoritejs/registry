@@ -105,61 +105,38 @@ router.delete("/", async (req, res) => {
   res.status(204).end();
 });
 
-router.patch("/:id", async (req, res) => {
+function notificationNotFound(res) {
+  return res
+    .status(404)
+    .json({
+      error: {
+        code: "NOT_FOUND",
+        message: "Notification not found.",
+        field: null,
+      },
+    });
+}
+
+async function resolveNotification(req, res, next) {
   const id = Number(req.params.id);
-  if (!Number.isSafeInteger(id) || id <= 0) {
-    return res
-      .status(404)
-      .json({
-        error: {
-          code: "NOT_FOUND",
-          message: "Notification not found.",
-          field: null,
-        },
-      });
-  }
+  if (!Number.isSafeInteger(id) || id <= 0) return notificationNotFound(res);
   const n = await getStmt("getNotification").get(id);
-  if (!n || n.user_id !== req.auth.user.id) {
-    return res
-      .status(404)
-      .json({
-        error: {
-          code: "NOT_FOUND",
-          message: "Notification not found.",
-          field: null,
-        },
-      });
-  }
-  const updated = await getStmt("markNotificationRead").get(nowIso(), n.id);
+  if (!n || n.user_id !== req.auth.user.id) return notificationNotFound(res);
+  req.notification = n;
+  next();
+}
+
+router.patch("/:id", resolveNotification, async (req, res) => {
+  const updated = await getStmt("markNotificationRead").get(
+    nowIso(),
+    req.notification.id,
+  );
+  if (!updated) return notificationNotFound(res);
   res.json(notificationJson(updated));
 });
 
-router.delete("/:id", async (req, res) => {
-  const id = Number(req.params.id);
-  if (!Number.isSafeInteger(id) || id <= 0) {
-    return res
-      .status(404)
-      .json({
-        error: {
-          code: "NOT_FOUND",
-          message: "Notification not found.",
-          field: null,
-        },
-      });
-  }
-  const n = await getStmt("getNotification").get(id);
-  if (!n || n.user_id !== req.auth.user.id) {
-    return res
-      .status(404)
-      .json({
-        error: {
-          code: "NOT_FOUND",
-          message: "Notification not found.",
-          field: null,
-        },
-      });
-  }
-  await getStmt("deleteNotification").run(n.id);
+router.delete("/:id", resolveNotification, async (req, res) => {
+  await getStmt("deleteNotification").run(req.notification.id);
   res.status(204).end();
 });
 
