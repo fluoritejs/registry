@@ -263,8 +263,12 @@ export function prepare(db) {
     "updateUserTermsAcceptance",
     "UPDATE users SET tos_accepted_at = $1, tos_version = $2, privacy_accepted_at = $3, privacy_version = $4 WHERE id = $5 RETURNING *",
   );
-  s("listUsers", "SELECT * FROM users ORDER BY id ASC LIMIT $1 OFFSET $2");
+  s("listUsers", "SELECT * FROM users WHERE id > $1 ORDER BY id ASC LIMIT $2");
   s("countUsers", "SELECT COUNT(*)::int as count FROM users");
+  s(
+    "countAdmins",
+    "SELECT COUNT(*)::int as count FROM users WHERE type = 'admin'",
+  );
   s(
     "lockSignupFirstAdmin",
     "SELECT pg_advisory_xact_lock(hashtext('fluorite-signup')::bigint)",
@@ -524,27 +528,42 @@ export async function runTransaction(fn) {
 }
 
 export async function deleteUserCascade(id) {
-  let pending = false;
+  const collected = [];
   await runTransaction(async () => {
     await conn().unsafe("SELECT id FROM users WHERE id = $1 FOR UPDATE", [id]);
     const versions = await getStmt("listVersionsByUser").all(id);
-    for (const v of versions) {
-      if (v.blob_path && existsSync(v.blob_path)) {
-        try {
-          unlinkSync(v.blob_path);
-        } catch (err) {
-          pending = true;
-          log.warn(
-            `Failed to delete blob ${v.blob_path}, left pending for retry: ${err.message}`,
-          );
-          await getStmt("markVersionDeletionPending").run(v.id);
-          continue;
-        }
-      }
-      await getStmt("deleteVersion").run(v.id);
+    for (const v of versions) collected.push(v);
+  });
+
+  let pending = false;
+  for (const v of collected) {
+    if (!v.blob_path || !existsSync(v.blob_path)) continue;
+    try {
+      unlinkSync(v.blob_path);
+    } catch (err) {
+      pending = true;
+      log.warn(
+        `Failed to delete blob ${v.blob_path}, left pending for retry: ${err.message}`,
+      );
+      await getStmt("markVersionDeletionPending").run(v.id);
     }
-    if (pending) return;
+  }
+  if (pending) return { pending: true };
+
+  await runTransaction(async () => {
+    const known = new Set(collected.map((v) => v.id));
+    const versions = await getStmt("listVersionsByUser").all(id);
+    const incoming = versions.filter((v) => !known.has(v.id));
+    if (incoming.length) {
+      pending = true;
+      for (const v of incoming) {
+        await getStmt("markVersionDeletionPending").run(v.id);
+      }
+      return;
+    }
+    for (const v of versions) await getStmt("deleteVersion").run(v.id);
     await conn().unsafe("DELETE FROM users WHERE id = $1", [id]);
   });
+
   return { pending };
 }
