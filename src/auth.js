@@ -125,10 +125,8 @@ function getOrCreateEntry(key, windowMs) {
     entry = { start: now, count: 0, windowMs };
     rateLimitStore.set(key, entry);
   }
-  if (rateLimitStore.size % 100 === 0) {
-    for (const [k, e] of rateLimitStore) {
-      if (now - e.start > e.windowMs) rateLimitStore.delete(k);
-    }
+  for (const [k, e] of rateLimitStore) {
+    if (now - e.start > e.windowMs) rateLimitStore.delete(k);
   }
   return entry;
 }
@@ -156,7 +154,7 @@ export function rateLimitMiddleware(type) {
     const cfg = getConfig().auth.rateLimit[type];
     let key;
     if (type === "login") {
-      const ns = req.body?.namespace || "unknown";
+      const ns = String(req.body?.namespace || "unknown").slice(0, 64);
       key = `${type}:${ns}:${req.ip}`;
     } else {
       key = `${type}:${req.ip}`;
