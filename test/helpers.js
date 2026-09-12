@@ -75,17 +75,26 @@ export async function createTestEnv(
   prepare(db);
 
   const deployment = {
-    server: { port: 0, publicBaseUrl: "http://localhost", requireHttps: false },
-    storage: { dataDir },
+    server: {
+      port: 0,
+      publicBaseUrl: "http://localhost",
+      requireHttps: false,
+      ...deploymentOverrides.server,
+    },
+    storage: { dataDir, ...deploymentOverrides.storage },
     database: {
       host: "localhost",
       port: 5432,
       database: "fluorite",
       user: "fluorite",
       password: "",
+      ...deploymentOverrides.database,
     },
-    admin: { firstUserBecomesAdmin: true, bootstrapAccount: null },
-    ...deploymentOverrides,
+    admin: {
+      firstUserBecomesAdmin: true,
+      bootstrapAccount: null,
+      ...deploymentOverrides.admin,
+    },
   };
   setDeployment(deployment);
 
