@@ -263,6 +263,17 @@ router.delete("/:namespace", requireSession, async (req, res) => {
         });
     }
   } catch (err) {
+    if (err.code === "LAST_ADMIN") {
+      return res
+        .status(409)
+        .json({
+          error: {
+            code: "LAST_ADMIN",
+            message: "Cannot delete the only remaining admin.",
+            field: null,
+          },
+        });
+    }
     log.error(
       `Failed to delete account data for ${target.namespace}: ${err.message}`,
     );
