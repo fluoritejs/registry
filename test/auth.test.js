@@ -1,6 +1,7 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert";
 import { hashToken } from "../src/auth.js";
+import { getStmt } from "../src/db.js";
 import {
   createTestEnv,
   request,
@@ -223,10 +224,14 @@ describe("Auth", () => {
       const second = await login(env.app, "sessionuser", "password123");
       const firstToken = first.body.token;
       const secondToken = second.body.token;
+      const firstSession = await getStmt("getAuthToken").get(
+        hashToken(firstToken),
+      );
+      const sessionId = firstSession.id;
       const listRes = await request(env.app, "GET", "/v0/auth/sessions", {
         headers: authHeaders(firstToken),
       });
-      const sessionId = listRes.body[0].id;
+      assert.ok(listRes.body.some((s) => s.id === sessionId));
       const delRes = await request(
         env.app,
         "DELETE",
@@ -241,11 +246,9 @@ describe("Auth", () => {
       const secondCheck = await request(env.app, "GET", "/v0/auth/sessions", {
         headers: authHeaders(secondToken),
       });
-      const checks = [firstCheck, secondCheck];
-      assert.strictEqual(checks.filter((c) => c.status === 401).length, 1);
-      const survivor = checks.find((c) => c.status === 200);
-      assert.ok(survivor);
-      assert.ok(!survivor.body.some((s) => s.id === sessionId));
+      assert.strictEqual(firstCheck.status, 401);
+      assert.strictEqual(secondCheck.status, 200);
+      assert.ok(!secondCheck.body.some((s) => s.id === sessionId));
     });
   });
 
