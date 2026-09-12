@@ -356,9 +356,23 @@ router.patch("/:namespace/role", requireSession, async (req, res) => {
           },
         });
     }
+    if (!updated) {
+      return res
+        .status(404)
+        .json({
+          error: { code: "NOT_FOUND", message: "User not found.", field: null },
+        });
+    }
     return res.json(userJson(updated));
   }
   const updated = await getStmt("updateUserRole").get(type, target.namespace);
+  if (!updated) {
+    return res
+      .status(404)
+      .json({
+        error: { code: "NOT_FOUND", message: "User not found.", field: null },
+      });
+  }
   res.json(userJson(updated));
 });
 
@@ -398,6 +412,13 @@ router.patch("/:namespace/trust", requireSession, async (req, res) => {
     trusted ? 1 : 0,
     target.namespace,
   );
+  if (!updated) {
+    return res
+      .status(404)
+      .json({
+        error: { code: "NOT_FOUND", message: "User not found.", field: null },
+      });
+  }
   res.json(userJson(updated));
 });
 
