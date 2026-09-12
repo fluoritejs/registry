@@ -820,12 +820,13 @@ describe("Stats", () => {
       },
     );
     assert.strictEqual(yankRes.status, 200);
-    await request(
+    const fetched = await request(
       env.app,
       "GET",
       "/v0/extensions/@owner2/pkg-b/versions/1.0.0",
       { headers: { Accept: "application/javascript" } },
     );
+    assert.strictEqual(fetched.status, 200);
 
     const first = await request(env.app, "GET", "/v0/stats");
     assert.strictEqual(first.status, 200);
