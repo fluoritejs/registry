@@ -219,18 +219,30 @@ function sendHttps(url, body, headers, pinned, deadline) {
 function drainResponse(res, deadline, maxResponseBodySize) {
   return new Promise((resolve, reject) => {
     let size = 0;
+    const timer = setTimeout(
+      () => {
+        res.destroy();
+        reject(new Error("Webhook delivery timed out"));
+      },
+      Math.max(1, deadline - Date.now()),
+    );
+
     res.on("data", (chunk) => {
       size += chunk.length;
       if (size > maxResponseBodySize) {
         res.destroy();
+        clearTimeout(timer);
         reject(new Error("Webhook response exceeded the maximum body size"));
-      } else if (deadline <= Date.now()) {
-        res.destroy();
-        reject(new Error("Webhook delivery timed out"));
       }
     });
-    res.on("end", resolve);
-    res.on("error", (err) => reject(err));
+    res.on("end", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+    res.on("error", (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
   });
 }
 
