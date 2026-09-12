@@ -268,7 +268,7 @@ describe("Terms — missing files", () => {
   after(() => env.cleanup());
 
   it("returns 404 when the terms file is missing", () => {
-    unlinkSync(join(env.dataDir, "terms", "tos.md"));
+    unlinkSync(join(env.dataDir, "terms", "tos.test-tos.md"));
     return request(env.app, "GET", "/v0/terms").then((res) => {
       assert.strictEqual(res.status, 404);
       assert.strictEqual(res.body.error.code, "TERMS_NOT_FOUND");
