@@ -8,11 +8,18 @@ const scryptAsync = promisify(crypto.scrypt);
 const SCRYPT_MAXMEM = 256 * 1024 * 1024;
 
 function scryptMaxmem(N, r, p) {
-  return Math.max(SCRYPT_MAXMEM, 128 * N * r * p + 65536);
+  return 128 * N * r * p + 65536;
+}
+
+function withinScryptMemoryLimit(N, r, p) {
+  return scryptMaxmem(N, r, p) <= SCRYPT_MAXMEM;
 }
 
 export async function hashPassword(password) {
   const cfg = getConfig().auth.passwordHashing;
+  if (!withinScryptMemoryLimit(cfg.N, cfg.r, cfg.p)) {
+    throw new Error("Configured scrypt parameters exceed the memory limit");
+  }
   const salt = crypto.randomBytes(16).toString("hex");
   const hash = await scryptAsync(password, salt, 64, {
     N: cfg.N,
@@ -57,7 +64,8 @@ export async function verifyPassword(password, stored) {
     rr < 1 ||
     rr > 32 ||
     pp < 1 ||
-    pp > 8
+    pp > 8 ||
+    !withinScryptMemoryLimit(n, rr, pp)
   ) {
     return false;
   }
