@@ -382,7 +382,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
-          $ref: "#/components/responses/TermsAcceptanceRequired"
+          $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
 
   /auth/signup:
     post:
@@ -478,7 +478,7 @@ paths:
         "401":
           description: Missing or invalid bearer token.
         "403":
-          $ref: "#/components/responses/TermsAcceptanceRequired"
+          $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
 
   /auth/sessions:
     get:
@@ -495,7 +495,7 @@ paths:
                 items:
                   $ref: "#/components/schemas/Session"
         "403":
-          $ref: "#/components/responses/TermsAcceptanceRequired"
+          $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
     delete:
       tags: [Userspace]
       operationId: revokeAllSessions
@@ -504,7 +504,7 @@ paths:
         "204":
           description: All sessions revoked.
         "403":
-          $ref: "#/components/responses/TermsAcceptanceRequired"
+          $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
 
   /auth/sessions/{id}:
     delete:
@@ -523,7 +523,7 @@ paths:
         "204":
           description: Session revoked.
         "403":
-          $ref: "#/components/responses/TermsAcceptanceRequired"
+          $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -542,7 +542,7 @@ paths:
                 items:
                   $ref: "#/components/schemas/AutomationToken"
         "403":
-          $ref: "#/components/responses/TermsAcceptanceRequired"
+          $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
     post:
       tags: [Userspace]
       operationId: createAutomationToken
@@ -582,7 +582,7 @@ paths:
         "400":
           $ref: "#/components/responses/Error"
         "403":
-          $ref: "#/components/responses/TermsAcceptanceRequired"
+          $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
 
   /auth/tokens/{id}:
     delete:
@@ -599,7 +599,7 @@ paths:
         "204":
           description: Revoked.
         "403":
-          $ref: "#/components/responses/TermsAcceptanceRequired"
+          $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
         "404":
           $ref: "#/components/responses/NotFound"
 
