@@ -411,10 +411,10 @@ export function prepare(db) {
     FROM versions v
     JOIN users u ON v.owner_id = u.id
     WHERE v.status = 'published' AND v.yanked = 0
-    AND (u.namespace LIKE '%' || $1 || '%'
-      OR v.package_id LIKE '%' || $2 || '%'
-      OR COALESCE(v.meta_json::jsonb ->> 'name', '') LIKE '%' || $3 || '%'
-      OR COALESCE(v.meta_json::jsonb ->> 'description', '') LIKE '%' || $4 || '%')
+    AND (u.namespace ILIKE '%' || $1 || '%' ESCAPE '\\'
+      OR v.package_id ILIKE '%' || $2 || '%' ESCAPE '\\'
+      OR COALESCE(v.meta_json::jsonb ->> 'name', '') ILIKE '%' || $3 || '%' ESCAPE '\\'
+      OR COALESCE(v.meta_json::jsonb ->> 'description', '') ILIKE '%' || $4 || '%' ESCAPE '\\')
     GROUP BY u.namespace, v.package_id
     HAVING MAX(v.id) < $5
     ORDER BY sort_key DESC
@@ -483,7 +483,7 @@ export function prepare(db) {
   s(
     "stats",
     `SELECT
-    (SELECT COUNT(*)::int FROM (SELECT DISTINCT owner_id, package_id FROM versions WHERE status = 'published' AND yanked = 0)) as published,
+    (SELECT COUNT(*)::int FROM (SELECT DISTINCT owner_id, package_id FROM versions WHERE status = 'published' AND yanked = 0) AS published_versions) as published,
     (SELECT COUNT(*)::int FROM versions WHERE status = 'pending') as pending,
     (SELECT COUNT(DISTINCT owner_id)::int FROM versions WHERE status = 'published' AND yanked = 0) as authors,
     (SELECT COALESCE(SUM(downloads), 0)::int FROM versions WHERE status = 'published' AND yanked = 0) as "totalDownloads"`,
@@ -524,33 +524,27 @@ export async function runTransaction(fn) {
 }
 
 export async function deleteUserCascade(id) {
-  const versions = await getStmt("listVersionsByUser").all(id);
-  const failed = [];
-  for (const v of versions) {
-    if (v.blob_path && existsSync(v.blob_path)) {
-      try {
-        unlinkSync(v.blob_path);
-      } catch (err) {
-        failed.push(v.id);
-        log.warn(
-          `Failed to delete blob ${v.blob_path}, left pending for retry: ${err.message}`,
-        );
-      }
-    }
-  }
-  if (failed.length) {
-    await runTransaction(async () => {
-      for (const versionId of failed) {
-        await getStmt("markVersionDeletionPending").run(versionId);
-      }
-    });
-    return { pending: true };
-  }
+  let pending = false;
   await runTransaction(async () => {
+    await conn().unsafe("SELECT id FROM users WHERE id = $1 FOR UPDATE", [id]);
+    const versions = await getStmt("listVersionsByUser").all(id);
     for (const v of versions) {
+      if (v.blob_path && existsSync(v.blob_path)) {
+        try {
+          unlinkSync(v.blob_path);
+        } catch (err) {
+          pending = true;
+          log.warn(
+            `Failed to delete blob ${v.blob_path}, left pending for retry: ${err.message}`,
+          );
+          await getStmt("markVersionDeletionPending").run(v.id);
+          continue;
+        }
+      }
       await getStmt("deleteVersion").run(v.id);
     }
+    if (pending) return;
     await conn().unsafe("DELETE FROM users WHERE id = $1", [id]);
   });
-  return { pending: false };
+  return { pending };
 }

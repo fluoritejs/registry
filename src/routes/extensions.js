@@ -47,6 +47,18 @@ function highestVersion(rows) {
   );
 }
 
+function escapeLike(term) {
+  return term
+    .replaceAll("\\", "\\\\")
+    .replaceAll("%", "\\%")
+    .replaceAll("_", "\\_");
+}
+
+function buildSearchTerms(q) {
+  const escaped = escapeLike(q);
+  return [escaped, escaped, escaped, escaped];
+}
+
 function aggregateExtensions(rows) {
   const groups = new Map();
   for (const row of rows) {
@@ -115,10 +127,7 @@ router.get("/", async (req, res) => {
 
   const identities = q
     ? await getStmt("searchExtensionIdentities").all(
-        q,
-        q,
-        q,
-        q,
+        ...buildSearchTerms(q),
         after,
         limit + 1,
       )
@@ -436,6 +445,31 @@ router.post(
       });
       blobOwned = false;
     } catch (err) {
+      if (err?.code === "23505") {
+        const constraint = String(err?.constraint ?? "");
+        if (constraint.includes("pending")) {
+          return res
+            .status(403)
+            .json({
+              error: {
+                code: "VERSION_PENDING_REVIEW",
+                message:
+                  "You have another version pending review. It needs to be approved or rejected before you can publish again.",
+                field: null,
+              },
+            });
+        }
+        return res
+          .status(409)
+          .json({
+            error: {
+              code: "VERSION_TAKEN",
+              message:
+                "A version with this id and version number already exists.",
+              field: "version",
+            },
+          });
+      }
       if (
         err instanceof PendingPublishBlockedError ||
         err?.code === "PENDING_PUBLISH_BLOCKED"
@@ -606,6 +640,7 @@ router.get("/:namespace/:id/versions/:version", async (req, res) => {
 
 router.patch(
   "/:namespace/:id/versions/:version",
+  requireSession,
   adminMiddleware,
   async (req, res) => {
     const namespace = parseNamespace(req.params.namespace);
