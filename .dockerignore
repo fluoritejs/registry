@@ -8,3 +8,4 @@ docs
 openapi
 .github
 *.log
+config.yaml
