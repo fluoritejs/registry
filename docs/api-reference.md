@@ -642,6 +642,7 @@ Compute HMAC-SHA256 of the raw request body using the webhook's secret (the hex 
 import crypto from "node:crypto";
 
 function verifySignature(body, secret, signature) {
+  if (typeof signature !== "string") return false;
   const expected =
     "sha256=" + crypto.createHmac("sha256", secret).update(body).digest("hex");
   const expectedBuf = Buffer.from(expected);
