@@ -27,10 +27,11 @@ const config = loadConfig();
 setConfig(config);
 setLevel(config.logging.level);
 
-const db = openDb(deployment.database);
-prepare(db);
+let db;
 
 async function main() {
+  db = openDb(deployment.database);
+  prepare(db);
   await migrate(db);
   log.info("Database schema up to date");
 
