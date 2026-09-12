@@ -5,7 +5,7 @@ import { createTestEnv, request, signup, authHeaders } from "./helpers.js";
 import { join } from "node:path";
 
 describe("Terms of Service & Privacy Policy", () => {
-  let env, adminToken, admin, userToken, user, autoToken;
+  let env, adminToken, admin, userToken, user;
 
   before(async () => {
     env = await createTestEnv({}, { terms: { enforce: true } });
@@ -136,6 +136,12 @@ describe("Terms of Service & Privacy Policy", () => {
   });
 
   it("forces re-acceptance when the terms version changes", async () => {
+    const bump = await request(env.app, "PATCH", "/v0/admin/terms?version=v2", {
+      body: "# Terms of Service v2",
+      headers: { ...authHeaders(adminToken), "Content-Type": "text/markdown" },
+    });
+    assert.strictEqual(bump.status, 200);
+
     const blocked = await request(env.app, "GET", "/v0/auth/me", {
       headers: authHeaders(userToken),
     });
@@ -193,19 +199,20 @@ describe("Terms of Service & Privacy Policy", () => {
     assert.strictEqual(reaccept.status, 200);
 
     const tokRes = await request(env.app, "POST", "/v0/auth/tokens", {
-      body: JSON.stringify({ name: "ci", scopes: ["publish"] }),
+      body: JSON.stringify({ name: "ci-bypass", scopes: ["publish"] }),
       headers: {
         ...authHeaders(userToken),
         "Content-Type": "application/json",
       },
     });
     assert.strictEqual(tokRes.status, 201);
-    autoToken = tokRes.body.token;
+    const token = tokRes.body.token;
 
-    await request(env.app, "PATCH", "/v0/admin/terms?version=v3", {
+    const bump = await request(env.app, "PATCH", "/v0/admin/terms?version=v3", {
       body: "# x",
       headers: { ...authHeaders(adminToken), "Content-Type": "text/markdown" },
     });
+    assert.strictEqual(bump.status, 200);
 
     const sessionBlocked = await request(env.app, "GET", "/v0/auth/me", {
       headers: authHeaders(userToken),
@@ -217,13 +224,34 @@ describe("Terms of Service & Privacy Policy", () => {
     );
 
     const withToken = await request(env.app, "GET", "/v0/auth/me", {
-      headers: authHeaders(autoToken),
+      headers: authHeaders(token),
     });
     assert.strictEqual(withToken.status, 403);
     assert.strictEqual(withToken.body.error.code, "FORBIDDEN");
   });
 
   it("lets automation tokens publish when the owner must re-accept terms", async () => {
+    const tokRes = await request(env.app, "POST", "/v0/auth/tokens", {
+      body: JSON.stringify({ name: "ci-publish", scopes: ["publish"] }),
+      headers: {
+        ...authHeaders(userToken),
+        "Content-Type": "application/json",
+      },
+    });
+    assert.strictEqual(tokRes.status, 201);
+    const token = tokRes.body.token;
+
+    const bump = await request(env.app, "PATCH", "/v0/admin/terms?version=v4", {
+      body: "# x",
+      headers: { ...authHeaders(adminToken), "Content-Type": "text/markdown" },
+    });
+    assert.strictEqual(bump.status, 200);
+
+    const blocked = await request(env.app, "GET", "/v0/auth/me", {
+      headers: authHeaders(userToken),
+    });
+    assert.strictEqual(blocked.status, 403);
+
     const source = `var Fluorite = { manifest: { id: 'terms-pkg', name: 'Terms Pkg', version: '1.0.0', license: 'MIT', description: 'd' } };`;
     const res = await request(
       env.app,
@@ -232,7 +260,7 @@ describe("Terms of Service & Privacy Policy", () => {
       {
         body: source,
         headers: {
-          ...authHeaders(autoToken),
+          ...authHeaders(token),
           "Content-Type": "application/javascript",
         },
       },
@@ -242,13 +270,22 @@ describe("Terms of Service & Privacy Policy", () => {
   });
 
   it("rejects automation tokens from accepting terms", async () => {
+    const tokRes = await request(env.app, "POST", "/v0/auth/tokens", {
+      body: JSON.stringify({ name: "ci-accept", scopes: ["publish"] }),
+      headers: {
+        ...authHeaders(userToken),
+        "Content-Type": "application/json",
+      },
+    });
+    assert.strictEqual(tokRes.status, 201);
+
     const res = await request(env.app, "POST", "/v0/terms/accept", {
       body: JSON.stringify({
         tosVersion: "test-tos",
         privacyVersion: "test-privacy",
       }),
       headers: {
-        ...authHeaders(autoToken),
+        ...authHeaders(tokRes.body.token),
         "Content-Type": "application/json",
       },
     });
