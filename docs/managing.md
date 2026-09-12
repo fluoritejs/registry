@@ -206,6 +206,8 @@ A `PGSERVICE` entry in `pg_service.conf` works the same way (then `pg_dump "serv
 
 Extension blobs live under `<dataDir>/blobs/`. Back up the entire `blobs/` directory.
 
+A version is written as a database row and a blob file in two separate steps, so `pg_dump` on its own can capture a row whose blob was written moments later (or vice versa). For a consistent point-in-time set, take the database dump and the `blobs/` copy around the same instant — for example by backing up both while cutting registry writes, or by taking a filesystem snapshot of the data directory and dumping the database from the same logical moment. The restore instructions below assume both halves came from the same backup run.
+
 ### Crash Recovery
 
 The server handles three recovery scenarios on startup:
