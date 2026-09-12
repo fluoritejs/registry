@@ -679,6 +679,9 @@ router.get("/:namespace/:id/versions/:version", async (req, res) => {
       }
     });
     stream.pipe(res);
+    res.on("close", () => {
+      if (!res.writableFinished) stream.destroy();
+    });
     res.on("finish", () => {
       if (!failed && res.statusCode === 200) {
         getStmt("incrementDownloads")
