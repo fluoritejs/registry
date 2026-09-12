@@ -95,6 +95,9 @@ export async function migrate(db) {
       CREATE INDEX IF NOT EXISTS versions_status ON versions(status);
     `);
     await tx.unsafe(`
+      CREATE INDEX IF NOT EXISTS versions_status_id ON versions(status, id DESC);
+    `);
+    await tx.unsafe(`
       CREATE TABLE IF NOT EXISTS notifications (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -107,6 +110,9 @@ export async function migrate(db) {
     `);
     await tx.unsafe(`
       CREATE INDEX IF NOT EXISTS notifications_user_id ON notifications(user_id);
+    `);
+    await tx.unsafe(`
+      CREATE INDEX IF NOT EXISTS notifications_user_id_id ON notifications(user_id, id DESC);
     `);
     await tx.unsafe(`
       CREATE INDEX IF NOT EXISTS auth_tokens_user_id ON auth_tokens(user_id);
@@ -562,6 +568,7 @@ export async function deleteUserCascade(id) {
     const versions = await getStmt("listVersionsByUser").all(id);
     for (const v of versions) collected.push(v);
   });
+  if (missing) return { missing: true };
 
   let pending = false;
   for (const v of collected) {
