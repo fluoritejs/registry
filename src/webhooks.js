@@ -161,7 +161,7 @@ export function isRestrictedIp(host) {
   }
   if (net.isIPv6(host)) {
     const bytes = ipv6ToBytes(host);
-    if (!bytes) return false;
+    if (!bytes) return true;
     const mapped = ipv4MappedToIpv4(bytes);
     if (mapped) return isRestrictedIp(mapped);
     if (bytes.slice(0, 12).every((b) => b === 0)) {
