@@ -257,13 +257,11 @@ export function loadConfig(overrides = {}) {
     deepMerge(loadYaml(resolve("config.yaml")), overrides),
   );
   raw.auth.tokenTtlMs = parseDuration(raw.auth.tokenTtl);
-  if (
-    !withinScryptMemoryLimit(
-      raw.auth.passwordHashing.N,
-      raw.auth.passwordHashing.r,
-      raw.auth.passwordHashing.p,
-    )
-  ) {
+  const { N, r, p } = raw.auth.passwordHashing;
+  if (![N, r, p].every((v) => Number.isInteger(v) && v > 0)) {
+    throw new Error("auth.passwordHashing.N, r, and p must be positive integers");
+  }
+  if (!withinScryptMemoryLimit(N, r, p)) {
     throw new Error("Configured scrypt parameters exceed the memory limit");
   }
   validateEncryptionKey(raw);
