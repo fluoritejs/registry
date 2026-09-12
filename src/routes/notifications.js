@@ -120,8 +120,7 @@ router.patch("/:id", resolveNotification, async (req, res) => {
     nowIso(),
     req.notification.id,
   );
-  if (!updated) return notificationNotFound(res);
-  res.json(notificationJson(updated));
+  res.json(notificationJson(updated || req.notification));
 });
 
 router.delete("/:id", resolveNotification, async (req, res) => {
