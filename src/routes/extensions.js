@@ -289,13 +289,11 @@ router.delete(
       const known = new Set(versions.map((v) => v.id));
       const incoming = current.filter((v) => !known.has(v.id));
       for (const v of incoming) {
-        if (v.blob_path && existsSync(v.blob_path)) {
-          pending = true;
-          await getStmt("markVersionDeletionPending").run(v.id);
-          log.warn(
-            `Blob appeared during extension delete, left pending: ${v.blob_path}`,
-          );
-        }
+        pending = true;
+        await getStmt("markVersionDeletionPending").run(v.id);
+        log.warn(
+          `Version appeared during extension delete, left pending: ${v.blob_path}`,
+        );
       }
       if (pending) return;
       await getStmt("deleteVersionsByOwnerAndPackage").run(user.id, id);
