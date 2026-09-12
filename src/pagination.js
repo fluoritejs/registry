@@ -1,4 +1,5 @@
 const MAX_OFFSET = 100000;
+const INT4_MAX = 2147483647;
 
 export function parseCursor(query) {
   if (!query || !query.cursor) return 0;
@@ -28,7 +29,7 @@ export function parseKeysetCursor(query) {
     if (Number.isInteger(decoded.sortKey) && decoded.sortKey >= 0) {
       // sortKey 0 is a valid terminal position, not "no cursor"; callers
       // treat the returned null as never-a-cursor, so 0 must survive parsing.
-      return decoded.sortKey;
+      return Math.min(decoded.sortKey, INT4_MAX);
     }
   } catch {
     /* invalid cursor, use the start of the collection */
