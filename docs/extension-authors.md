@@ -31,14 +31,14 @@ The manifest key can be either `Fluorite.manifest` or `Fluorite.meta`; both are 
       id: "my-extension",
       version: "1.0.0",
       license: "Apache-2.0",
-      description: "What this extension does"
+      description: "What this extension does",
     },
-    assets: { "icon.svg": "data:image/svg+xml;base64,..." }
+    assets: { "icon.svg": "data:image/svg+xml;base64,..." },
   };
 
   class MyExtension {
     getInfo() {
-      return { id: Fluorite.manifest.id, name: Fluorite.manifest.name, ... };
+      return { id: Fluorite.manifest.id, name: Fluorite.manifest.name };
     }
   }
 

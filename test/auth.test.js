@@ -181,12 +181,14 @@ describe("Auth", () => {
     });
 
     it("rejects expired token", async () => {
+      const signupRes = await signup(env.app, "expireduser", "password123");
+      const expiredToken = signupRes.body.token;
       await env.db.unsafe(
         "UPDATE auth_tokens SET expires_at = $1 WHERE token_hash = $2",
-        ["2000-01-01T00:00:00.000Z", hashToken(token)],
+        ["2000-01-01T00:00:00.000Z", hashToken(expiredToken)],
       );
       const res = await request(env.app, "GET", "/v0/auth/me", {
-        headers: authHeaders(token),
+        headers: authHeaders(expiredToken),
       });
       assert.strictEqual(res.status, 401);
       assert.strictEqual(res.body.error.code, "TOKEN_EXPIRED");

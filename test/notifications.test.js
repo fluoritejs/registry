@@ -108,12 +108,9 @@ describe("Notifications", () => {
     );
     assert.strictEqual(res.status, 204);
 
-    const list = await request(
-      env.app,
-      "GET",
-      "/v0/notifications?status=read",
-      { headers: authHeaders(userToken) },
-    );
+    const list = await request(env.app, "GET", "/v0/notifications", {
+      headers: authHeaders(userToken),
+    });
     assert.strictEqual(list.status, 200);
     assert.ok(
       !list.body.notifications.some((n) => n.id === String(created.id)),
