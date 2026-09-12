@@ -581,7 +581,24 @@ router.get("/:namespace/:id/versions/:version", async (req, res) => {
     res.set("Content-Type", "application/javascript");
     res.set("X-Content-Type-Options", "nosniff");
     res.set("Content-Disposition", "attachment");
-    createReadStream(v.blob_path).pipe(res);
+    const stream = createReadStream(v.blob_path);
+    stream.on("error", (err) => {
+      log.error(`Failed to stream blob ${v.blob_path}: ${err.message}`);
+      if (!res.headersSent) {
+        res
+          .status(500)
+          .json({
+            error: {
+              code: "INTERNAL_ERROR",
+              message: "Failed to serve extension code.",
+              field: null,
+            },
+          });
+      } else {
+        res.destroy();
+      }
+    });
+    stream.pipe(res);
   } else {
     res.json(versionJson(v));
   }
