@@ -160,6 +160,16 @@ export function isRestrictedIp(host) {
         `${bytes[12]}.${bytes[13]}.${bytes[14]}.${bytes[15]}`,
       );
     }
+    if (
+      bytes[0] === 0x00 &&
+      bytes[1] === 0x64 &&
+      bytes[2] === 0xff &&
+      bytes[3] === 0x9b
+    ) {
+      return isRestrictedIp(
+        `${bytes[12]}.${bytes[13]}.${bytes[14]}.${bytes[15]}`,
+      );
+    }
     if (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0x80) return true;
     if ((bytes[0] & 0xfe) === 0xfc) return true;
     return false;
@@ -189,11 +199,13 @@ async function resolveSafeHost(hostname) {
     (candidate) => !isRestrictedIp(normalizeHost(candidate.address)),
   );
   if (!safe.length) return null;
-  const chosen = safe[0];
-  return { address: chosen.address, family: chosen.family };
+  return safe.map((candidate) => ({
+    address: candidate.address,
+    family: candidate.family,
+  }));
 }
 
-function sendHttps(url, body, headers, pinned, deadline) {
+function attemptSend(url, body, headers, pinned, deadline) {
   return new Promise((resolve, reject) => {
     const timeLeft = deadline - Date.now();
     if (timeLeft <= 0) {
@@ -223,6 +235,27 @@ function sendHttps(url, body, headers, pinned, deadline) {
     req.on("close", () => clearTimeout(hardDeadline));
     req.on("error", reject);
     req.end(body);
+  });
+}
+
+function sendHttps(url, body, headers, pinned, deadline) {
+  return new Promise((resolve, reject) => {
+    (async () => {
+      let lastErr;
+      for (const candidate of pinned) {
+        if (deadline - Date.now() <= 0) {
+          reject(new Error("Webhook delivery timed out"));
+          return;
+        }
+        try {
+          resolve(await attemptSend(url, body, headers, candidate, deadline));
+          return;
+        } catch (err) {
+          lastErr = err;
+        }
+      }
+      reject(lastErr);
+    })();
   });
 }
 
@@ -257,7 +290,7 @@ function drainResponse(res, deadline, maxResponseBodySize) {
 }
 
 function isRedirect(statusCode) {
-  return [307, 308].includes(statusCode);
+  return statusCode >= 300 && statusCode < 400;
 }
 
 async function deliverOnce(
@@ -288,9 +321,14 @@ async function deliverOnce(
   }
   const res = await sendHttps(url, body, headers, pinned, deadline);
   await drainResponse(res, deadline, cfg.maxResponseBodySize);
-  if (isRedirect(res.statusCode) && res.headers.location) {
-    const next = new URL(res.headers.location, url).toString();
-    return deliverOnce(next, body, headers, cfg, redirectCount + 1, deadline);
+  if (isRedirect(res.statusCode)) {
+    if (res.headers.location) {
+      const next = new URL(res.headers.location, url).toString();
+      return deliverOnce(next, body, headers, cfg, redirectCount + 1, deadline);
+    }
+    throw permanentError(
+      `Webhook destination returned ${res.statusCode} without a Location header.`,
+    );
   }
   return res.statusCode;
 }
@@ -349,7 +387,7 @@ export async function deliverWithRetry(wh, body, event, cfg = {}) {
     }
 
     if (attempt < deliveryCfg.maxRetries) {
-      const base = deliveryCfg.retryBackoffMs * (attempt + 1);
+      const base = deliveryCfg.retryBackoffMs * 2 ** attempt;
       const jitter = Math.random() * deliveryCfg.retryBackoffMs;
       await new Promise((r) => setTimeout(r, base + jitter));
     }
