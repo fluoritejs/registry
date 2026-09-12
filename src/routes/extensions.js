@@ -1,14 +1,8 @@
 import { Router } from "express";
 import crypto from "node:crypto";
 import * as semver from "semver";
-import {
-  writeFileSync,
-  renameSync,
-  createReadStream,
-  mkdirSync,
-  unlinkSync,
-  existsSync,
-} from "node:fs";
+import { createReadStream, mkdirSync, unlinkSync, existsSync } from "node:fs";
+import { writeFile, rename } from "node:fs/promises";
 import { dirname } from "node:path";
 import {
   getStmt,
@@ -31,9 +25,11 @@ import {
   encodeKeysetCursor,
   parseLimit,
 } from "../pagination.js";
-import { fireWebhooks } from "../webhooks.js";
+import { dispatchWebhooks } from "../webhooks.js";
 import { versionJson } from "../version-json.js";
 import { log } from "../logger.js";
+
+const MAX_REASON_LENGTH = 200;
 
 const router = Router();
 
@@ -285,8 +281,31 @@ router.delete(
         });
     }
     await runTransaction(async () => {
+      const current = await getStmt("listVersionsByOwner").all(namespace, id);
+      const known = new Set(versions.map((v) => v.id));
+      const incoming = current.filter((v) => !known.has(v.id));
+      for (const v of incoming) {
+        if (v.blob_path && existsSync(v.blob_path)) {
+          pending = true;
+          await getStmt("markVersionDeletionPending").run(v.id);
+          log.warn(
+            `Blob appeared during extension delete, left pending: ${v.blob_path}`,
+          );
+        }
+      }
+      if (pending) return;
       await getStmt("deleteVersionsByOwnerAndPackage").run(user.id, id);
     });
+    if (pending) {
+      log.warn(`Extension delete left pending blobs: ${namespace}/${id}`);
+      return res
+        .status(202)
+        .json({
+          pending: true,
+          message:
+            "One or more blobs could not be removed; the delete remains pending for retry.",
+        });
+    }
     log.info(`Extension deleted: ${namespace}/${id}`);
     res.status(204).end();
   },
@@ -457,8 +476,8 @@ router.post(
         ).id;
       });
 
-      writeFileSync(stagingPath, source, "utf8");
-      renameSync(stagingPath, finalPath);
+      await writeFile(stagingPath, source, "utf8");
+      await rename(stagingPath, finalPath);
       blobOwned = true;
 
       await runTransaction(async () => {
@@ -548,21 +567,16 @@ router.post(
       manifest.version,
     );
 
-    try {
-      const event = trusted ? "version.published" : "version.pending";
-      await fireWebhooks(event, {
-        extension: { namespace, id },
-        version: { version: manifest.version, status },
-      });
+    const event = trusted ? "version.published" : "version.pending";
+    dispatchWebhooks(event, {
+      extension: { namespace, id },
+      version: { version: manifest.version, status },
+    });
 
-      log.info(
-        `Version published: ${namespace}/${id}@${manifest.version} (status=${status})`,
-      );
-    } catch (err) {
-      log.error(
-        `Post-publish workflow failed for ${namespace}/${id}@${manifest.version}: ${err.message}`,
-      );
-    }
+    log.info(
+      `Version published: ${namespace}/${id}@${manifest.version} (status=${status})`,
+    );
+    log.debug(`Webhooks dispatched for ${namespace}/${id}@${manifest.version}`);
 
     res.status(201).json(versionJson(version));
   },
@@ -626,17 +640,6 @@ router.get("/:namespace/:id/versions/:version", async (req, res) => {
 
   const accept = req.headers.accept || "";
   if (accept.includes("application/javascript")) {
-    if (!existsSync(v.blob_path)) {
-      return res
-        .status(404)
-        .json({
-          error: {
-            code: "BLOB_MISSING",
-            message: "Compiled code not available.",
-            field: null,
-          },
-        });
-    }
     res.set("Content-Type", "application/javascript");
     res.set("X-Content-Type-Options", "nosniff");
     res.set("Content-Disposition", "attachment");
@@ -644,6 +647,18 @@ router.get("/:namespace/:id/versions/:version", async (req, res) => {
     const stream = createReadStream(v.blob_path);
     stream.on("error", (err) => {
       failed = true;
+      if (err.code === "ENOENT" && !res.headersSent) {
+        log.warn(`Blob missing while serving ${v.blob_path}`);
+        return res
+          .status(404)
+          .json({
+            error: {
+              code: "BLOB_MISSING",
+              message: "Compiled code not available.",
+              field: null,
+            },
+          });
+      }
       log.error(`Failed to stream blob ${v.blob_path}: ${err.message}`);
       if (!res.headersSent) {
         res
@@ -694,6 +709,21 @@ router.patch(
             code: "VALIDATION_ERROR",
             message: 'status must be "approved" or "rejected".',
             field: "status",
+          },
+        });
+    }
+
+    if (
+      reason !== undefined &&
+      (typeof reason !== "string" || reason.length > MAX_REASON_LENGTH)
+    ) {
+      return res
+        .status(400)
+        .json({
+          error: {
+            code: "VALIDATION_ERROR",
+            message: `reason must be a string of at most ${MAX_REASON_LENGTH} characters.`,
+            field: "reason",
           },
         });
     }
@@ -753,16 +783,10 @@ router.patch(
 
     const event =
       newStatus === "approved" ? "version.approved" : "version.rejected";
-    try {
-      await fireWebhooks(event, {
-        extension: { namespace, id },
-        version: { version, status: dbStatus },
-      });
-    } catch (err) {
-      log.error(
-        `Webhook delivery failed for ${namespace}/${id}@${version}: ${err.message}`,
-      );
-    }
+    dispatchWebhooks(event, {
+      extension: { namespace, id },
+      version: { version, status: dbStatus },
+    });
 
     log.info(`Version ${namespace}/${id}@${version} ${newStatus}`);
 
@@ -850,6 +874,21 @@ router.patch(
         });
     }
 
+    if (
+      reason !== undefined &&
+      (typeof reason !== "string" || reason.length > MAX_REASON_LENGTH)
+    ) {
+      return res
+        .status(400)
+        .json({
+          error: {
+            code: "VALIDATION_ERROR",
+            message: `reason must be a string of at most ${MAX_REASON_LENGTH} characters.`,
+            field: "reason",
+          },
+        });
+    }
+
     const user = await getStmt("getUserByNamespace").get(namespace);
     if (!user) {
       return res
@@ -903,16 +942,10 @@ router.patch(
     );
 
     if (yanked && !wasYanked) {
-      try {
-        await fireWebhooks("version.yanked", {
-          extension: { namespace, id },
-          version: { version, status: v.status },
-        });
-      } catch (err) {
-        log.error(
-          `Webhook delivery failed for ${namespace}/${id}@${version}: ${err.message}`,
-        );
-      }
+      dispatchWebhooks("version.yanked", {
+        extension: { namespace, id },
+        version: { version, status: v.status },
+      });
     }
 
     const updated = await getStmt("getVersion").get(namespace, id, version);
