@@ -437,9 +437,7 @@ export async function fireWebhooks(event, payload) {
   const cfg = getConfig().webhooks;
   if (!cfg) return;
 
-  const webhooks = await getStmt("listEnabledWebhooksForEvent").all(
-    `%${event}%`,
-  );
+  const webhooks = await getStmt("listEnabledWebhooksForEvent").all(event);
   if (!webhooks.length) return;
 
   const body = JSON.stringify({

@@ -482,7 +482,7 @@ export function prepare(db) {
   );
   s(
     "listEnabledWebhooksForEvent",
-    "SELECT * FROM webhooks WHERE enabled = 1 AND events LIKE $1",
+    "SELECT * FROM webhooks WHERE enabled = 1 AND events::jsonb @> $1::jsonb",
   );
   s(
     "updateWebhook",
