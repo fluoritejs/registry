@@ -1,21 +1,12 @@
 import crypto from "node:crypto";
 import { promisify } from "node:util";
-import { getConfig } from "./config.js";
+import { getConfig, scryptMaxmem, withinScryptMemoryLimit } from "./config.js";
 import { getStmt } from "./db.js";
 import { loadManifest } from "./terms.js";
 
 const scryptAsync = promisify(crypto.scrypt);
-const SCRYPT_MAXMEM = 256 * 1024 * 1024;
 
 const LEGACY_SCRYPT_PARAMS = { N: 16384, r: 8, p: 1 };
-
-function scryptMaxmem(N, r, p) {
-  return 128 * N * r * p + 65536;
-}
-
-function withinScryptMemoryLimit(N, r, p) {
-  return scryptMaxmem(N, r, p) <= SCRYPT_MAXMEM;
-}
 
 export async function hashPassword(password) {
   const cfg = getConfig().auth.passwordHashing;

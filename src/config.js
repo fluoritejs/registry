@@ -3,6 +3,16 @@ import { resolve } from "node:path";
 import yaml from "js-yaml";
 import { log, setLevel } from "./logger.js";
 
+const SCRYPT_MAXMEM = 256 * 1024 * 1024;
+
+export function scryptMaxmem(N, r, p) {
+  return 128 * N * r * p + 65536;
+}
+
+export function withinScryptMemoryLimit(N, r, p) {
+  return scryptMaxmem(N, r, p) <= SCRYPT_MAXMEM;
+}
+
 const DEPLOYMENT_DEFAULTS = {
   server: {
     port: 3000,
@@ -247,6 +257,15 @@ export function loadConfig(overrides = {}) {
     deepMerge(loadYaml(resolve("config.yaml")), overrides),
   );
   raw.auth.tokenTtlMs = parseDuration(raw.auth.tokenTtl);
+  if (
+    !withinScryptMemoryLimit(
+      raw.auth.passwordHashing.N,
+      raw.auth.passwordHashing.r,
+      raw.auth.passwordHashing.p,
+    )
+  ) {
+    throw new Error("Configured scrypt parameters exceed the memory limit");
+  }
   validateEncryptionKey(raw);
   return raw;
 }
