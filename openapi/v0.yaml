@@ -409,6 +409,8 @@ paths:
                     $ref: "#/components/schemas/User"
                   token:
                     type: string
+        "400":
+          $ref: "#/components/responses/Error"
         "409":
           $ref: "#/components/responses/Error"
 
@@ -561,6 +563,8 @@ paths:
                     properties:
                       token:
                         type: string
+        "400":
+          $ref: "#/components/responses/Error"
         "403":
           $ref: "#/components/responses/TermsAcceptanceRequired"
 
@@ -786,6 +790,8 @@ paths:
                       $ref: "#/components/schemas/ExtensionSummary"
                   nextCursor:
                     type: [string, "null"]
+        "400":
+          $ref: "#/components/responses/Error"
         "403":
           $ref: "#/components/responses/TermsAcceptanceRequired"
 
@@ -814,6 +820,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Extension"
+        "400":
+          $ref: "#/components/responses/Error"
         "403":
           $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
         "404":
@@ -862,6 +870,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/VersionMetadata"
+        "400":
+          $ref: "#/components/responses/Error"
         "403":
           $ref: "#/components/responses/ForbiddenOrTermsAcceptanceRequired"
         "409":
