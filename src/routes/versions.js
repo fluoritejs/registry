@@ -19,13 +19,18 @@ router.get("/", adminMiddleware, async (req, res) => {
   const after = parseKeysetCursor(req.query) ?? 2_147_483_647;
   const status = req.query.status;
 
-  if (!status) {
+  if (
+    !["staging", "pending", "published", "rejected", "pending_delete"].includes(
+      status,
+    )
+  ) {
     return res
       .status(400)
       .json({
         error: {
           code: "VALIDATION_ERROR",
-          message: "status query parameter is required.",
+          message:
+            "status must be one of staging, pending, published, rejected, pending_delete.",
           field: "status",
         },
       });
