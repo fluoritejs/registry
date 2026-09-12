@@ -59,8 +59,16 @@ export async function createTestEnv(
     "tosVersion: test-tos\nprivacyVersion: test-privacy\n",
     "utf8",
   );
-  writeFileSync(join(termsDir, "tos.md"), "# Test Terms of Service", "utf8");
-  writeFileSync(join(termsDir, "privacy.md"), "# Test Privacy Policy", "utf8");
+  writeFileSync(
+    join(termsDir, "tos.test-tos.md"),
+    "# Test Terms of Service",
+    "utf8",
+  );
+  writeFileSync(
+    join(termsDir, "privacy.test-privacy.md"),
+    "# Test Privacy Policy",
+    "utf8",
+  );
 
   const { db, schema, cleanup: dropSchema } = await openTestDb();
   await migrate(db);
@@ -136,7 +144,7 @@ export async function request(app, method, path, options = {}) {
         headers: { ...options.headers },
       };
 
-      if (options.body && typeof options.body === "string") {
+      if (options.body !== undefined && typeof options.body === "string") {
         reqOptions.headers["Content-Type"] =
           options.headers?.["Content-Type"] || "application/json";
       }
@@ -171,7 +179,7 @@ export async function request(app, method, path, options = {}) {
         req.destroy(new Error(`Test request to ${method} ${path} timed out`));
       });
 
-      if (options.body) {
+      if (options.body !== undefined) {
         req.write(
           typeof options.body === "string"
             ? options.body
