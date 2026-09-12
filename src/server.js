@@ -29,8 +29,6 @@ setLevel(config.logging.level);
 const db = openDb(deployment.database);
 prepare(db);
 
-let app;
-
 async function main() {
   await migrate(db);
   log.info("Database schema up to date");
@@ -74,7 +72,7 @@ async function main() {
   }
 }
 
-app = createApp();
+const app = createApp();
 
 const PORT = deployment.server.port;
 const server = createServer(app);
@@ -94,6 +92,7 @@ function shutdown() {
 
   const forceExit = setTimeout(() => {
     log.warn("Shutdown timed out, forcing exit");
+    server.closeAllConnections();
     process.exit(1);
   }, timeoutMs);
 
@@ -107,6 +106,7 @@ function shutdown() {
       process.exit(0);
     }
   });
+  server.closeIdleConnections();
 }
 
 process.on("SIGTERM", shutdown);
