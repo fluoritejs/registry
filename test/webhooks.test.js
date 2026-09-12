@@ -207,6 +207,11 @@ describe("Webhooks", () => {
       { headers: authHeaders(adminToken) },
     );
     assert.strictEqual(res.status, 204);
+
+    const afterDelete = await request(env.app, "GET", "/v0/webhooks", {
+      headers: authHeaders(adminToken),
+    });
+    assert.ok(!afterDelete.body.some(({ id }) => id === createRes.body.id));
   });
 
   it("returns 404 for unknown webhook", async () => {

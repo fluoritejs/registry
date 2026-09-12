@@ -78,6 +78,11 @@ describe("Notifications", () => {
       headers: authHeaders(userToken),
     });
     assert.strictEqual(res.status, 204);
+
+    const afterDelete = await request(env.app, "GET", "/v0/notifications", {
+      headers: authHeaders(userToken),
+    });
+    assert.ok(!afterDelete.body.notifications.some(({ id }) => id === nId));
   });
 
   it("bulk-deletes read notifications", async () => {
