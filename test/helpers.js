@@ -41,102 +41,111 @@ export async function createTestEnv(
 ) {
   clearRateLimits();
   const dataDir = mkdtempSync(join(tmpdir(), "fluorite-test-"));
-  const termsOverride = configOverrides.terms || {};
-  const config = loadConfig({
-    ...configOverrides,
-    terms: {
-      dir: join(dataDir, "terms"),
-      enforce: termsOverride.enforce ?? false,
-    },
-  });
-  setConfig(config);
-  setLevel("error");
+  let db;
+  let schema;
+  let dropSchema;
+  try {
+    const termsOverride = configOverrides.terms || {};
+    const config = loadConfig({
+      ...configOverrides,
+      terms: {
+        dir: join(dataDir, "terms"),
+        enforce: termsOverride.enforce ?? false,
+      },
+    });
+    setConfig(config);
+    setLevel("error");
 
-  const termsDir = join(dataDir, "terms");
-  mkdirSync(termsDir, { recursive: true });
-  writeFileSync(
-    join(termsDir, "manifest.yaml"),
-    "tosVersion: test-tos\nprivacyVersion: test-privacy\n",
-    "utf8",
-  );
-  writeFileSync(
-    join(termsDir, "tos.test-tos.md"),
-    "# Test Terms of Service",
-    "utf8",
-  );
-  writeFileSync(
-    join(termsDir, "privacy.test-privacy.md"),
-    "# Test Privacy Policy",
-    "utf8",
-  );
+    const termsDir = join(dataDir, "terms");
+    mkdirSync(termsDir, { recursive: true });
+    writeFileSync(
+      join(termsDir, "manifest.yaml"),
+      "tosVersion: test-tos\nprivacyVersion: test-privacy\n",
+      "utf8",
+    );
+    writeFileSync(
+      join(termsDir, "tos.test-tos.md"),
+      "# Test Terms of Service",
+      "utf8",
+    );
+    writeFileSync(
+      join(termsDir, "privacy.test-privacy.md"),
+      "# Test Privacy Policy",
+      "utf8",
+    );
 
-  const { db, schema, cleanup: dropSchema } = await openTestDb();
-  await migrate(db);
-  prepare(db);
+    ({ db, schema, cleanup: dropSchema } = await openTestDb());
+    await migrate(db);
+    prepare(db);
 
-  const deployment = {
-    server: {
-      port: 0,
-      publicBaseUrl: "http://localhost",
-      requireHttps: false,
-      ...deploymentOverrides.server,
-    },
-    storage: { dataDir, ...deploymentOverrides.storage },
-    database: {
-      host: "localhost",
-      port: 5432,
-      database: "fluorite",
-      user: "fluorite",
-      password: "",
-      ...deploymentOverrides.database,
-    },
-    admin: {
-      firstUserBecomesAdmin: true,
-      bootstrapAccount: null,
-      ...deploymentOverrides.admin,
-    },
-  };
-  setDeployment(deployment);
+    const deployment = {
+      server: {
+        port: 0,
+        publicBaseUrl: "http://localhost",
+        requireHttps: false,
+        ...deploymentOverrides.server,
+      },
+      storage: { dataDir, ...deploymentOverrides.storage },
+      database: {
+        host: "localhost",
+        port: 5432,
+        database: "fluorite",
+        user: "fluorite",
+        password: "",
+        ...deploymentOverrides.database,
+      },
+      admin: {
+        firstUserBecomesAdmin: true,
+        bootstrapAccount: null,
+        ...deploymentOverrides.admin,
+      },
+    };
+    setDeployment(deployment);
 
-  if (deployment.admin.bootstrapAccount) {
-    const bootstrap = deployment.admin.bootstrapAccount;
-    if (!(await getStmt("getUserByNamespace").get(bootstrap.namespace))) {
-      const hash = await hashPassword(bootstrap.password);
-      await getStmt("createUser").get(
-        bootstrap.namespace,
-        bootstrap.displayName || "Administrator",
-        hash,
-        "admin",
-        1,
-      );
-      const created = await getStmt("getUserByNamespace").get(
-        bootstrap.namespace,
-      );
-      const { tosVersion, privacyVersion } = loadManifest(config.terms.dir);
-      await getStmt("updateUserTermsAcceptance").run(
-        nowIso(),
-        tosVersion,
-        nowIso(),
-        privacyVersion,
-        created.id,
-      );
+    if (deployment.admin.bootstrapAccount) {
+      const bootstrap = deployment.admin.bootstrapAccount;
+      if (!(await getStmt("getUserByNamespace").get(bootstrap.namespace))) {
+        const hash = await hashPassword(bootstrap.password);
+        await getStmt("createUser").get(
+          bootstrap.namespace,
+          bootstrap.displayName || "Administrator",
+          hash,
+          "admin",
+          1,
+        );
+        const created = await getStmt("getUserByNamespace").get(
+          bootstrap.namespace,
+        );
+        const { tosVersion, privacyVersion } = loadManifest(config.terms.dir);
+        await getStmt("updateUserTermsAcceptance").run(
+          nowIso(),
+          tosVersion,
+          nowIso(),
+          privacyVersion,
+          created.id,
+        );
+      }
     }
+
+    const app = createApp();
+
+    return {
+      app,
+      db,
+      schema,
+      dataDir,
+      config,
+      deployment,
+      async cleanup() {
+        await dropSchema();
+        rmSync(dataDir, { recursive: true, force: true });
+      },
+    };
+  } catch (err) {
+    if (dropSchema) await dropSchema();
+    rmSync(dataDir, { recursive: true, force: true });
+    throw err;
   }
-
-  const app = createApp();
-
-  return {
-    app,
-    db,
-    schema,
-    dataDir,
-    config,
-    deployment,
-    async cleanup() {
-      await dropSchema();
-      rmSync(dataDir, { recursive: true, force: true });
-    },
-  };
 }
 
 export async function request(app, method, path, options = {}) {
