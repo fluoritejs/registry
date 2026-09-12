@@ -66,6 +66,7 @@ export function saveManifest(termsDir, manifest) {
   mkdirSync(termsDir, { recursive: true });
   const text = yaml.dump(manifest);
   writeFileSync(manifestPath(termsDir), text, "utf8");
+  manifestCache.delete(manifestPath(termsDir));
 }
 
 export function readContent(termsDir, name, version) {
@@ -84,13 +85,11 @@ export function writeContent(termsDir, name, content) {
 }
 
 function assertSafeVersion(version) {
-  const segments = String(version).split(/[\\/]/);
-  if (
-    typeof version !== "string" ||
-    version.length === 0 ||
-    segments.length > 1 ||
-    segments.some((s) => s === "." || s === "..")
-  ) {
+  if (typeof version !== "string" || version.length === 0) {
+    throw new Error(`Invalid version: ${version}`);
+  }
+  const segments = version.split(/[\\/]/);
+  if (segments.length > 1 || segments.some((s) => s === "." || s === "..")) {
     throw new Error(`Invalid version: ${version}`);
   }
 }
