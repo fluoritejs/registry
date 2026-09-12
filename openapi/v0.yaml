@@ -1060,7 +1060,7 @@ paths:
                             extensionId:
                               type: string
                   nextCursor:
-                    type: [integer, "null"]
+                    type: [string, "null"]
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
