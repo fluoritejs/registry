@@ -1,7 +1,6 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert";
 import { hashToken } from "../src/auth.js";
-import { getStmt } from "../src/db.js";
 import {
   createTestEnv,
   request,
@@ -48,7 +47,8 @@ describe("Auth", () => {
         const first = await signup(isolated.app, "testuser", "password123");
         assert.strictEqual(first.status, 201);
         for (let i = 0; i < 10; i++) {
-          await signup(isolated.app, "testuser", "other-password");
+          const dup = await signup(isolated.app, "testuser", "other-password");
+          assert.strictEqual(dup.status, 409);
         }
 
         const res = await signup(isolated.app, "newuser", "password123");
@@ -233,9 +233,9 @@ describe("Auth", () => {
       const second = await login(env.app, "sessionuser", "password123");
       const firstToken = first.body.token;
       const secondToken = second.body.token;
-      const firstSession = await getStmt("getAuthToken").get(
-        hashToken(firstToken),
-      );
+      const rows =
+        await env.db`SELECT * FROM auth_tokens WHERE token_hash = ${hashToken(firstToken)}`;
+      const firstSession = rows[0];
       const sessionId = firstSession.id;
       const listRes = await request(env.app, "GET", "/v0/auth/sessions", {
         headers: authHeaders(firstToken),
@@ -328,7 +328,10 @@ describe("Auth", () => {
 
     it("revokes all tokens when password changes", async () => {
       const res = await request(env.app, "PATCH", "/v0/users/revokeuser", {
-        body: JSON.stringify({ password: "newpassword456" }),
+        body: JSON.stringify({
+          password: "newpassword456",
+          currentPassword: "password123",
+        }),
         headers: {
           ...authHeaders(sessionToken),
           "Content-Type": "application/json",

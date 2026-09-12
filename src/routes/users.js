@@ -1,6 +1,11 @@
 import { Router } from "express";
 import { getStmt, deleteUserCascade, runTransaction } from "../db.js";
-import { hashPassword, verifyPassword, userJson, requireSession } from "../auth.js";
+import {
+  hashPassword,
+  verifyPassword,
+  userJson,
+  requireSession,
+} from "../auth.js";
 import { getConfig } from "../config.js";
 import {
   parseKeysetCursor,

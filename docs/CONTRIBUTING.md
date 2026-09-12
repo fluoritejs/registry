@@ -36,16 +36,16 @@ Thanks for contributing to Fluorite Registry.
 
 ## Project Layout
 
-| Path              | Purpose                                                            |
-| ----------------- | ------------------------------------------------------------------ |
-| `src/server.js`   | App assembly, middleware, startup, shutdown, SIGHUP reload         |
-| `src/routes/`     | Express routers. One file per resource (auth, users, extensions)   |
-| `src/db.js`       | PostgreSQL schema, migrations, prepared statements, crash recovery |
-| `src/auth.js`     | Password hashing, tokens, rate limiting, auth middleware           |
-| `src/config.js`   | `deployment.yaml` / `config.yaml` loading and defaults             |
-| `src/manifest.js` | AST-based manifest extraction from compiled extension source       |
-| `src/webhooks.js` | Webhook delivery, signatures, retry logic                          |
-| `test/`           | Integration tests. Each route file has a matching `*.test.js`      |
+| Path              | Purpose                                                          |
+| ----------------- | ---------------------------------------------------------------- |
+| `src/server.js`   | App assembly, middleware, startup, shutdown, SIGHUP reload       |
+| `src/routes/`     | Express routers. One file per resource (auth, users, extensions) |
+| `src/db.js`       | PostgreSQL schema, prepared statements, crash recovery           |
+| `src/auth.js`     | Password hashing, tokens, rate limiting, auth middleware         |
+| `src/config.js`   | `deployment.yaml` / `config.yaml` loading and defaults           |
+| `src/manifest.js` | AST-based manifest extraction from compiled extension source     |
+| `src/webhooks.js` | Webhook delivery, signatures, retry logic                        |
+| `test/`           | Integration tests. Each route file has a matching `*.test.js`    |
 
 ## Running the Server Locally
 

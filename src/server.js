@@ -10,7 +10,7 @@ import {
 } from "./config.js";
 import {
   openDb,
-  migrate,
+  createSchema,
   reconcileStaging,
   cleanupTempBlobs,
   prepare,
@@ -32,8 +32,8 @@ let db;
 async function main() {
   db = openDb(deployment.database);
   prepare(db);
-  await migrate(db);
-  log.info("Database schema up to date");
+  await createSchema(db);
+  log.info("Database schema ready");
 
   cleanupTempBlobs(deployment.storage.dataDir);
   await reconcileStaging(db);

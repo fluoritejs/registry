@@ -136,8 +136,8 @@ describe("Terms of Service & Privacy Policy", () => {
   });
 
   it("forces re-acceptance when the terms version changes", async () => {
-    const bump = await request(env.app, "PATCH", "/v0/admin/terms?version=v2", {
-      body: "# Terms of Service v2",
+    const bump = await request(env.app, "PATCH", "/v0/admin/terms?version=v3", {
+      body: "# Terms of Service v3",
       headers: { ...authHeaders(adminToken), "Content-Type": "text/markdown" },
     });
     assert.strictEqual(bump.status, 200);
@@ -150,7 +150,7 @@ describe("Terms of Service & Privacy Policy", () => {
 
     const accept = await request(env.app, "POST", "/v0/terms/accept", {
       body: JSON.stringify({
-        tosVersion: "v2",
+        tosVersion: "v3",
         privacyVersion: "test-privacy",
       }),
       headers: {
@@ -188,15 +188,21 @@ describe("Terms of Service & Privacy Policy", () => {
     assert.strictEqual(getRes.headers["x-terms-version"], "v2");
   });
 
-  it("automation tokens bypass terms enforcement", async () => {
-    const reaccept = await request(env.app, "POST", "/v0/terms/accept", {
-      body: JSON.stringify({ tosVersion: "v2", privacyVersion: "v2" }),
-      headers: {
-        ...authHeaders(userToken),
-        "Content-Type": "application/json",
-      },
+  async function acceptCurrentTerms(token) {
+    const tos = await request(env.app, "GET", "/v0/terms");
+    const privacy = await request(env.app, "GET", "/v0/privacy");
+    const accept = await request(env.app, "POST", "/v0/terms/accept", {
+      body: JSON.stringify({
+        tosVersion: tos.headers["x-terms-version"],
+        privacyVersion: privacy.headers["x-terms-version"],
+      }),
+      headers: { ...authHeaders(token), "Content-Type": "application/json" },
     });
-    assert.strictEqual(reaccept.status, 200);
+    assert.strictEqual(accept.status, 200);
+  }
+
+  it("automation tokens bypass terms enforcement", async () => {
+    await acceptCurrentTerms(userToken);
 
     const tokRes = await request(env.app, "POST", "/v0/auth/tokens", {
       body: JSON.stringify({ name: "ci-bypass", scopes: ["publish"] }),
@@ -208,7 +214,7 @@ describe("Terms of Service & Privacy Policy", () => {
     assert.strictEqual(tokRes.status, 201);
     const token = tokRes.body.token;
 
-    const bump = await request(env.app, "PATCH", "/v0/admin/terms?version=v3", {
+    const bump = await request(env.app, "PATCH", "/v0/admin/terms?version=v4", {
       body: "# x",
       headers: { ...authHeaders(adminToken), "Content-Type": "text/markdown" },
     });
@@ -231,6 +237,8 @@ describe("Terms of Service & Privacy Policy", () => {
   });
 
   it("lets automation tokens publish when the owner must re-accept terms", async () => {
+    await acceptCurrentTerms(userToken);
+
     const tokRes = await request(env.app, "POST", "/v0/auth/tokens", {
       body: JSON.stringify({ name: "ci-publish", scopes: ["publish"] }),
       headers: {
@@ -241,7 +249,7 @@ describe("Terms of Service & Privacy Policy", () => {
     assert.strictEqual(tokRes.status, 201);
     const token = tokRes.body.token;
 
-    const bump = await request(env.app, "PATCH", "/v0/admin/terms?version=v4", {
+    const bump = await request(env.app, "PATCH", "/v0/admin/terms?version=v5", {
       body: "# x",
       headers: { ...authHeaders(adminToken), "Content-Type": "text/markdown" },
     });
@@ -270,6 +278,8 @@ describe("Terms of Service & Privacy Policy", () => {
   });
 
   it("rejects automation tokens from accepting terms", async () => {
+    await acceptCurrentTerms(userToken);
+
     const tokRes = await request(env.app, "POST", "/v0/auth/tokens", {
       body: JSON.stringify({ name: "ci-accept", scopes: ["publish"] }),
       headers: {

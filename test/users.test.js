@@ -100,7 +100,10 @@ describe("Users", () => {
     let res;
     try {
       res = await request(env.app, "PATCH", "/v0/users/txuser", {
-        body: JSON.stringify({ password: "newpass456" }),
+        body: JSON.stringify({
+          password: "newpass456",
+          currentPassword: "oldpass123",
+        }),
         headers: {
           ...authHeaders(txToken),
           "Content-Type": "application/json",

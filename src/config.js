@@ -259,7 +259,9 @@ export function loadConfig(overrides = {}) {
   raw.auth.tokenTtlMs = parseDuration(raw.auth.tokenTtl);
   const { N, r, p } = raw.auth.passwordHashing;
   if (![N, r, p].every((v) => Number.isInteger(v) && v > 0)) {
-    throw new Error("auth.passwordHashing.N, r, and p must be positive integers");
+    throw new Error(
+      "auth.passwordHashing.N, r, and p must be positive integers",
+    );
   }
   if (!withinScryptMemoryLimit(N, r, p)) {
     throw new Error("Configured scrypt parameters exceed the memory limit");

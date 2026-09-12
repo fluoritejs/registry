@@ -1,10 +1,23 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert";
-import { readFileSync, mkdirSync, writeFileSync, existsSync } from "node:fs";
+import {
+  readFileSync,
+  mkdirSync,
+  writeFileSync,
+  existsSync,
+  rmSync,
+  mkdtempSync,
+} from "node:fs";
 import { join, dirname } from "node:path";
+import { tmpdir } from "node:os";
 import { createTestEnv, request, signup, authHeaders } from "./helpers.js";
 import { extractManifest } from "../src/manifest.js";
-import { getStmt, blobPath, reconcileStaging } from "../src/db.js";
+import {
+  getStmt,
+  blobPath,
+  reconcileStaging,
+  cleanupTempBlobs,
+} from "../src/db.js";
 import { CONFIG_DEFAULTS, setConfig, getConfig } from "../src/config.js";
 
 const VALID_SOURCE = readFileSync(
@@ -840,8 +853,8 @@ describe("Stats", () => {
       const res = await request(env.app, "GET", "/v0/stats");
       assert.strictEqual(res.status, 200);
       downloads = res.body.totalDownloads;
-      if (downloads === 1) break;
-      await new Promise((r) => setTimeout(r, 10));
+      if (downloads > 0) break;
+      await new Promise((r) => setTimeout(r, 50));
     }
     assert.strictEqual(downloads, 1);
   });
@@ -859,7 +872,9 @@ describe("Interrupted publish recovery", () => {
   after(() => env.cleanup());
 
   async function insertStagingRow(namespace, packageId, version) {
-    const user = await env.db`SELECT id FROM users WHERE namespace = ${namespace}`.first();
+    const userRows =
+      await env.db`SELECT id FROM users WHERE namespace = ${namespace}`;
+    const user = userRows[0];
     const path = blobPath(
       env.deployment.storage.dataDir,
       namespace,
@@ -868,13 +883,15 @@ describe("Interrupted publish recovery", () => {
     );
     await env.db`
       INSERT INTO versions (owner_id, package_id, version, status, meta_json, blob_path, created_at, published_at)
-      VALUES (${user.id}, ${packageId}, ${version}, 'staging', ${JSON.stringify({
-        id: packageId,
-        name: "Interrupted",
-        version,
-        license: "MIT",
-        description: "d",
-      })}, ${path}, ${new Date().toISOString()}, null)
+      VALUES (${user.id}, ${packageId}, ${version}, 'staging', ${JSON.stringify(
+        {
+          id: packageId,
+          name: "Interrupted",
+          version,
+          license: "MIT",
+          description: "d",
+        },
+      )}, ${path}, ${new Date().toISOString()}, null)
     `;
     return path;
   }
@@ -927,5 +944,61 @@ describe("Interrupted publish recovery", () => {
     );
     assert.ok(recovered, "staging version with an artifact must remain");
     assert.strictEqual(recovered.status, "pending");
+  });
+
+  it("deletes a pending_delete version that still has its blob", async () => {
+    const path = await insertStagingRow(
+      "recoveruser",
+      "pending-delete-ext",
+      "1.0.0",
+    );
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, SAMPLE_SOURCE, "utf8");
+    await env.db`UPDATE versions SET status = 'pending_delete' WHERE blob_path = ${path}`;
+
+    await reconcileStaging(env.db);
+
+    const v = await getStmt("getVersion").get(
+      "recoveruser",
+      "pending-delete-ext",
+      "1.0.0",
+    );
+    assert.strictEqual(v, undefined, "pending-delete row must be removed");
+    assert.ok(!existsSync(path), "blob must be removed with the row");
+  });
+
+  it("cleans up orphaned temp blob files", () => {
+    const dir = mkdtempSync(join(tmpdir(), "cleanup-"));
+    const blobsDir = join(dir, "blobs");
+    mkdirSync(join(blobsDir, "user", "ext"), { recursive: true });
+    writeFileSync(join(blobsDir, "user", "ext", ".tmp-abc123"), "temp");
+    writeFileSync(join(blobsDir, "user", "ext", "1.0.0.js"), "real");
+
+    cleanupTempBlobs(dir);
+
+    assert.ok(!existsSync(join(blobsDir, "user", "ext", ".tmp-abc123")));
+    assert.ok(existsSync(join(blobsDir, "user", "ext", "1.0.0.js")));
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("cleans up orphaned staging blob files", () => {
+    const dir = mkdtempSync(join(tmpdir(), "cleanup-"));
+    const blobsDir = join(dir, "blobs");
+    mkdirSync(join(blobsDir, "user", "ext"), { recursive: true });
+    writeFileSync(
+      join(blobsDir, "user", "ext", "1.0.0.staging-0123456789abcdef"),
+      "temp",
+    );
+    writeFileSync(join(blobsDir, "user", "ext", "1.0.0.js"), "real");
+
+    cleanupTempBlobs(dir);
+
+    assert.ok(
+      !existsSync(
+        join(blobsDir, "user", "ext", "1.0.0.staging-0123456789abcdef"),
+      ),
+    );
+    assert.ok(existsSync(join(blobsDir, "user", "ext", "1.0.0.js")));
+    rmSync(dir, { recursive: true, force: true });
   });
 });

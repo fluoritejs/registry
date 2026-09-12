@@ -33,10 +33,10 @@ export function openDb(database) {
   );
 }
 
-export async function migrate(db) {
+export async function createSchema(db) {
   await db.begin(async (tx) => {
     await tx.unsafe(`
-      CREATE TABLE IF NOT EXISTS users (
+      CREATE TABLE users (
         id SERIAL PRIMARY KEY,
         namespace TEXT NOT NULL UNIQUE,
         display_name TEXT NOT NULL DEFAULT '',
@@ -50,7 +50,7 @@ export async function migrate(db) {
       );
     `);
     await tx.unsafe(`
-      CREATE TABLE IF NOT EXISTS auth_tokens (
+      CREATE TABLE auth_tokens (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         token_hash TEXT NOT NULL UNIQUE,
@@ -59,7 +59,7 @@ export async function migrate(db) {
       );
     `);
     await tx.unsafe(`
-      CREATE TABLE IF NOT EXISTS automation_tokens (
+      CREATE TABLE automation_tokens (
         id TEXT PRIMARY KEY,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         name TEXT NOT NULL,
@@ -70,7 +70,7 @@ export async function migrate(db) {
       );
     `);
     await tx.unsafe(`
-      CREATE TABLE IF NOT EXISTS versions (
+      CREATE TABLE versions (
         id SERIAL PRIMARY KEY,
         owner_id INTEGER NOT NULL REFERENCES users(id),
         package_id TEXT NOT NULL,
@@ -86,19 +86,18 @@ export async function migrate(db) {
         UNIQUE(owner_id, package_id, version)
       );
     `);
-    await tx.unsafe("DROP INDEX IF EXISTS versions_one_pending_per_owner");
     await tx.unsafe(`
-      CREATE UNIQUE INDEX IF NOT EXISTS versions_one_pending_per_owner_package
+      CREATE UNIQUE INDEX versions_one_pending_per_owner_package
         ON versions(owner_id, package_id) WHERE status IN ('staging', 'pending');
     `);
     await tx.unsafe(`
-      CREATE INDEX IF NOT EXISTS versions_status ON versions(status);
+      CREATE INDEX versions_status ON versions(status);
     `);
     await tx.unsafe(`
-      CREATE INDEX IF NOT EXISTS versions_status_id ON versions(status, id DESC);
+      CREATE INDEX versions_status_id ON versions(status, id DESC);
     `);
     await tx.unsafe(`
-      CREATE TABLE IF NOT EXISTS notifications (
+      CREATE TABLE notifications (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         message TEXT NOT NULL,
@@ -109,16 +108,16 @@ export async function migrate(db) {
       );
     `);
     await tx.unsafe(`
-      CREATE INDEX IF NOT EXISTS notifications_user_id ON notifications(user_id);
+      CREATE INDEX notifications_user_id ON notifications(user_id);
     `);
     await tx.unsafe(`
-      CREATE INDEX IF NOT EXISTS notifications_user_id_id ON notifications(user_id, id DESC);
+      CREATE INDEX notifications_user_id_id ON notifications(user_id, id DESC);
     `);
     await tx.unsafe(`
-      CREATE INDEX IF NOT EXISTS auth_tokens_user_id ON auth_tokens(user_id);
+      CREATE INDEX auth_tokens_user_id ON auth_tokens(user_id);
     `);
     await tx.unsafe(`
-      CREATE TABLE IF NOT EXISTS webhooks (
+      CREATE TABLE webhooks (
         id TEXT PRIMARY KEY,
         url TEXT NOT NULL,
         events TEXT NOT NULL,

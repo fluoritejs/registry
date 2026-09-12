@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import postgres from "postgres";
 import { loadConfig, setConfig, setDeployment } from "../src/config.js";
-import { openDb, migrate, prepare, getStmt } from "../src/db.js";
+import { openDb, createSchema, prepare, getStmt } from "../src/db.js";
 import { createApp } from "../src/app.js";
 import { setLevel } from "../src/logger.js";
 import { clearRateLimits, hashPassword, nowIso } from "../src/auth.js";
@@ -75,7 +75,7 @@ export async function createTestEnv(
     );
 
     ({ db, schema, cleanup: dropSchema } = await openTestDb());
-    await migrate(db);
+    await createSchema(db);
     prepare(db);
 
     const deployment = {
