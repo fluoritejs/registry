@@ -55,8 +55,8 @@ router.post("/", async (req, res) => {
       .json({
         error: {
           code: "VALIDATION_ERROR",
-          message: "url and events are required.",
-          field: null,
+          message: "url is required.",
+          field: "url",
         },
       });
   }

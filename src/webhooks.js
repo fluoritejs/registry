@@ -11,6 +11,11 @@ const MAX_REDIRECTS = 5;
 export function getEncryptionKey() {
   const key = getConfig().webhooks?.encryptionKey;
   if (!key) return null;
+  if (!/^[0-9a-f]{64}$/i.test(key)) {
+    throw new Error(
+      "webhooks.encryptionKey must be a 64-character hex string (openssl rand -hex 32).",
+    );
+  }
   return Buffer.from(key, "hex");
 }
 
@@ -316,6 +321,15 @@ export async function deliverWithRetry(wh, body, event, cfg = {}) {
         log.debug(`Webhook delivered to ${wh.id} (${event})`);
         return;
       }
+      if (status >= 400 && status < 500 && status !== 408 && status !== 429) {
+        log.warn(
+          `Refusing webhook delivery to ${wh.url}: HTTP ${status} is permanent`,
+        );
+        throw Object.assign(
+          new Error(`Webhook destination returned ${status}`),
+          { permanent: true },
+        );
+      }
       log.warn(
         `Webhook delivery to ${wh.url} returned ${status} (attempt ${attempt + 1})`,
       );
@@ -330,9 +344,9 @@ export async function deliverWithRetry(wh, body, event, cfg = {}) {
     }
 
     if (attempt < deliveryCfg.maxRetries) {
-      await new Promise((r) =>
-        setTimeout(r, deliveryCfg.retryBackoffMs * (attempt + 1)),
-      );
+      const base = deliveryCfg.retryBackoffMs * (attempt + 1);
+      const jitter = Math.random() * deliveryCfg.retryBackoffMs;
+      await new Promise((r) => setTimeout(r, base + jitter));
     }
   }
 
