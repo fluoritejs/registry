@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { getStmt, deleteUserCascade, runTransaction } from "../db.js";
-import { hashPassword, userJson, requireSession } from "../auth.js";
+import { hashPassword, verifyPassword, userJson, requireSession } from "../auth.js";
 import { getConfig } from "../config.js";
 import {
   parseKeysetCursor,
@@ -174,7 +174,7 @@ router.patch("/:namespace", requireSession, async (req, res) => {
       });
   }
 
-  const { displayName, password } = req.body ?? {};
+  const { displayName, password, currentPassword } = req.body ?? {};
   if (displayName !== undefined && invalidDisplayName(displayName)) {
     return res
       .status(400)
@@ -183,6 +183,23 @@ router.patch("/:namespace", requireSession, async (req, res) => {
           code: "VALIDATION_ERROR",
           message: `displayName must be a string of at most ${MAX_DISPLAY_NAME} characters.`,
           field: "displayName",
+        },
+      });
+  }
+
+  if (
+    password !== undefined &&
+    isOwner &&
+    (typeof currentPassword !== "string" ||
+      !verifyPassword(currentPassword, target.password_hash))
+  ) {
+    return res
+      .status(401)
+      .json({
+        error: {
+          code: "UNAUTHORIZED",
+          message: "currentPassword must match the account's current password.",
+          field: "currentPassword",
         },
       });
   }
