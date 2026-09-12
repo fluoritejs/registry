@@ -11,6 +11,7 @@ import { join, resolve } from "node:path";
 import yaml from "js-yaml";
 import { getConfig } from "./config.js";
 import { getStmt } from "./db.js";
+import { isSafeSegment } from "./validate.js";
 
 function manifestPath(termsDir) {
   return join(termsDir, "manifest.yaml");
@@ -64,9 +65,21 @@ export function loadManifest(termsDir) {
 
 export function saveManifest(termsDir, manifest) {
   mkdirSync(termsDir, { recursive: true });
-  const text = yaml.dump(manifest);
-  writeFileSync(manifestPath(termsDir), text, "utf8");
-  manifestCache.delete(manifestPath(termsDir));
+  const path = manifestPath(termsDir);
+  const cookie = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+  const tmp = `${path}.${cookie}.tmp`;
+  try {
+    writeFileSync(tmp, yaml.dump(manifest), "utf8");
+    renameSync(tmp, path);
+  } catch (err) {
+    try {
+      if (existsSync(tmp)) unlinkSync(tmp);
+    } catch {
+      /* ignore */
+    }
+    throw err;
+  }
+  manifestCache.delete(path);
 }
 
 export function readContent(termsDir, name, version) {
@@ -85,11 +98,7 @@ export function writeContent(termsDir, name, content) {
 }
 
 function assertSafeVersion(version) {
-  if (typeof version !== "string" || version.length === 0) {
-    throw new Error(`Invalid version: ${version}`);
-  }
-  const segments = version.split(/[\\/]/);
-  if (segments.length > 1 || segments.some((s) => s === "." || s === "..")) {
+  if (!isSafeSegment(version)) {
     throw new Error(`Invalid version: ${version}`);
   }
 }
