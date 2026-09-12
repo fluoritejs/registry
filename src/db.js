@@ -543,10 +543,14 @@ export async function runTransaction(fn) {
 
 export async function deleteUserCascade(id) {
   const collected = [];
+  let missing = false;
   await runTransaction(async () => {
     await conn().unsafe("SELECT id FROM users WHERE id = $1 FOR UPDATE", [id]);
     const target = await getStmt("getUserById").get(id);
-    if (!target) return { missing: true };
+    if (!target) {
+      missing = true;
+      return;
+    }
     if (target.type === "admin") {
       const { count } = await getStmt("countAdminsForUpdate").get();
       if (count <= 1) {
