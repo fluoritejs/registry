@@ -489,7 +489,7 @@ describe("Extensions - publish flow", () => {
     assert.ok(typeof res.body === "string");
   });
 
-  it("yanked published version is hidden from non-owner callers", async () => {
+  it("yanked published version stays retrievable but flagged", async () => {
     const source = `var Fluorite = { manifest: { id: 'yanked-fetch', name: 'Yanked Fetch', version: '1.0.0', license: 'MIT', description: 'd' } };`;
     const pubRes = await request(
       env.app,
@@ -527,14 +527,16 @@ describe("Extensions - publish flow", () => {
       "/v0/extensions/@regularuser/yanked-fetch/versions/1.0.0",
       { headers: { Accept: "application/javascript" } },
     );
-    assert.strictEqual(jsRes.status, 404);
+    assert.strictEqual(jsRes.status, 200);
+    assert.ok(jsRes.body.includes("yanked-fetch"));
 
     const metaRes = await request(
       env.app,
       "GET",
       "/v0/extensions/@regularuser/yanked-fetch/versions/1.0.0",
     );
-    assert.strictEqual(metaRes.status, 404);
+    assert.strictEqual(metaRes.status, 200);
+    assert.strictEqual(metaRes.body.yanked, true);
 
     const ownerJs = await request(
       env.app,
@@ -888,7 +890,7 @@ describe("Interrupted publish recovery", () => {
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, SAMPLE_SOURCE, "utf8");
 
-    await reconcileStaging(env.db, env.deployment.storage.dataDir);
+    await reconcileStaging(env.db);
 
     const v = await getStmt("getVersion").get(
       "recoveruser",
@@ -902,9 +904,16 @@ describe("Interrupted publish recovery", () => {
   });
 
   it("deletes a staging version with no artifact after a crash before the rename", async () => {
+    const preserved = await insertStagingRow(
+      "recoveruser",
+      "interrupted-ext-keep",
+      "2.0.0",
+    );
+    mkdirSync(dirname(preserved), { recursive: true });
+    writeFileSync(preserved, SAMPLE_SOURCE, "utf8");
     await insertStagingRow("recoveruser2", "interrupted-ext", "1.0.0");
 
-    await reconcileStaging(env.db, env.deployment.storage.dataDir);
+    await reconcileStaging(env.db);
 
     const v = await getStmt("getVersion").get(
       "recoveruser2",
@@ -915,10 +924,10 @@ describe("Interrupted publish recovery", () => {
 
     const recovered = await getStmt("getVersion").get(
       "recoveruser",
-      "interrupted-ext",
-      "1.0.0",
+      "interrupted-ext-keep",
+      "2.0.0",
     );
-    assert.ok(recovered, "recovered staging version must remain");
+    assert.ok(recovered, "staging version with an artifact must remain");
     assert.strictEqual(recovered.status, "pending");
   });
 });

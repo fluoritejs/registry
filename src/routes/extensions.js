@@ -253,6 +253,11 @@ router.delete(
           },
         });
     }
+    await runTransaction(async () => {
+      for (const v of versions) {
+        await getStmt("markVersionDeletionPending").run(v.id);
+      }
+    });
     let pending = false;
     const failedIds = [];
     for (const v of versions) {
@@ -268,10 +273,9 @@ router.delete(
       }
     }
     if (pending) {
-      for (const versionId of failedIds) {
-        await getStmt("markVersionDeletionPending").run(versionId);
-      }
-      log.warn(`Extension delete left pending blobs: ${namespace}/${id}`);
+      log.warn(
+        `Extension delete left ${failedIds.length} version(s) pending: ${namespace}/${id}`,
+      );
       return res
         .status(202)
         .json({
@@ -626,7 +630,7 @@ router.get("/:namespace/:id/versions/:version", async (req, res) => {
 
   const isOwner = req.auth && req.auth.user.id === user.id;
   const isAdmin = req.auth && req.auth.user.type === "admin";
-  if (!isOwner && !isAdmin && (v.status !== "published" || v.yanked)) {
+  if (!isOwner && !isAdmin && v.status !== "published") {
     return res
       .status(404)
       .json({
