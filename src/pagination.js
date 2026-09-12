@@ -1,3 +1,5 @@
+const MAX_OFFSET = 100000;
+
 export function parseCursor(query) {
   if (!query || !query.cursor) return 0;
   try {
@@ -5,7 +7,7 @@ export function parseCursor(query) {
       Buffer.from(String(query.cursor), "base64").toString(),
     );
     if (Number.isInteger(decoded.offset) && decoded.offset >= 0) {
-      return decoded.offset;
+      return Math.min(decoded.offset, MAX_OFFSET);
     }
   } catch {
     /* invalid cursor, use 0 */
@@ -24,6 +26,8 @@ export function parseKeysetCursor(query) {
       Buffer.from(String(query.cursor), "base64").toString(),
     );
     if (Number.isInteger(decoded.sortKey) && decoded.sortKey >= 0) {
+      // sortKey 0 is a valid terminal position, not "no cursor"; callers
+      // treat the returned null as never-a-cursor, so 0 must survive parsing.
       return decoded.sortKey;
     }
   } catch {
