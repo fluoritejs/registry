@@ -492,6 +492,25 @@ router.post(
       });
       blobOwned = false;
     } catch (err) {
+      if (blobOwned) {
+        try {
+          if (existsSync(finalPath)) unlinkSync(finalPath);
+        } catch {
+          /* ignore */
+        }
+      }
+      try {
+        if (existsSync(stagingPath)) unlinkSync(stagingPath);
+      } catch {
+        /* ignore */
+      }
+      if (versionId !== undefined) {
+        try {
+          await getStmt("deleteVersion").run(versionId);
+        } catch {
+          /* ignore */
+        }
+      }
       if (err?.code === "23505") {
         const constraint = String(err?.constraint ?? "");
         if (constraint.includes("pending")) {
@@ -531,25 +550,6 @@ router.post(
               field: null,
             },
           });
-      }
-      if (blobOwned) {
-        try {
-          if (existsSync(finalPath)) unlinkSync(finalPath);
-        } catch {
-          /* ignore */
-        }
-      }
-      try {
-        if (existsSync(stagingPath)) unlinkSync(stagingPath);
-      } catch {
-        /* ignore */
-      }
-      if (versionId !== undefined) {
-        try {
-          await getStmt("deleteVersion").run(versionId);
-        } catch {
-          /* ignore */
-        }
       }
       log.error(`Publish failed: ${err.message}`);
       return res
